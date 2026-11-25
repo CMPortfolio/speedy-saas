@@ -6,6 +6,8 @@
 #   pnpm --filter @speedy/db db:local:down    # stop and delete data
 #
 # Gateway: http://127.0.0.1:54321  (auth/v1, rest/v1, storage/v1)   Postgres: 127.0.0.1:54322
+# Run a second copy on other ports (parallel work, CI matrix):
+#   COMPOSE_PROJECT_NAME=speedy-supabase-x SUPABASE_API_PORT=54341 SUPABASE_DB_PORT=54342 pnpm --filter @speedy/db db:local:up
 name: speedy-supabase
 
 x-jwt-secret: &jwt_secret super-secret-jwt-token-with-at-least-32-characters-long
@@ -16,7 +18,7 @@ services:
   db:
     image: postgres:17-alpine
     ports:
-      - '54322:5432'
+      - '${SUPABASE_DB_PORT:-54322}:5432'
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
@@ -35,7 +37,7 @@ services:
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: '9999'
-      API_EXTERNAL_URL: http://127.0.0.1:54321
+      API_EXTERNAL_URL: http://127.0.0.1:${SUPABASE_API_PORT:-54321}
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:postgres@db:5432/postgres
       GOTRUE_SITE_URL: http://127.0.0.1:3001
@@ -111,7 +113,7 @@ services:
       - rest
       - storage
     ports:
-      - '54321:80'
+      - '${SUPABASE_API_PORT:-54321}:80'
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 

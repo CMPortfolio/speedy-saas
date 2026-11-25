@@ -40,9 +40,9 @@ export function Input({ label, hint, error, id, className, ...rest }: InputProps
         className={cn(
           'min-h-tap w-full rounded-brand border bg-surface px-3 text-base text-ink',
           'placeholder:text-muted',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+          'focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-brand',
           'disabled:cursor-not-allowed disabled:opacity-60',
-          error ? 'border-danger' : 'border-border',
+          error ? 'border-danger' : 'border-field',
           className,
         )}
         {...rest}

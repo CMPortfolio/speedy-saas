@@ -2,28 +2,58 @@
  * Naples AI Tailwind v4 preset. Import after tailwindcss in every app's globals.css:
  *   @import 'tailwindcss';
  *   @import '@speedy/config/tailwind';
- * Values mirror ./brand.js; change both together.
+ * Values mirror ./brand.js and the colours on naplesaiagency.com; change both together.
+ *
+ * Fonts: each app's root layout loads Inter and Newsreader with next/font/google and puts
+ * their `--font-inter` / `--font-newsreader` variables on <html>.
  */
 @theme {
-  --color-primary: #0e7490;
-  --color-primary-hover: #155e75;
+  /* The site's tokens, under their site names. */
+  --color-brand: #1a7ac6;
+  --color-brand-deep: #1364a6;
+  --color-brand-light: #5aaee6;
+  --color-brand-soft: #e6f1fa;
+  --color-orange: #f97316;
+  --color-orange-deep: #c2410c;
+  --color-paper: #f4f6f9;
+  --color-ink-2: #34445a;
+  --color-line: #d9e0e8;
+  --color-navy: #0b2240;
+  --color-line-dark: #253d5e;
+  /* Text on the navy footer and panels. */
+  --color-on-navy: #a9bbd0;
+  --color-on-navy-muted: #9db0c8;
+  --color-on-navy-strong: #c3d2e3;
+
+  /* Semantic names the tools already use. */
+  --color-primary: #1364a6;
+  --color-primary-hover: #0f548c;
   --color-primary-foreground: #ffffff;
-  --color-accent: #f97362;
-  --color-accent-foreground: #2b1b17;
-  --color-background: #faf9f6;
+  --color-accent: #f97316;
+  --color-accent-foreground: #0f1c2e;
+  --color-background: #f4f6f9;
   --color-surface: #ffffff;
-  --color-border: #e5e1da;
-  --color-ink: #1c1917;
-  --color-muted: #6b6560;
+  --color-border: #d9e0e8;
+  /* Borders of inputs and selects: 3.5:1 on white, 3.3:1 on paper (WCAG 1.4.11). Cards and
+     dividers keep the lighter --color-border. */
+  --color-field: #7a899e;
+  --color-ink: #0f1c2e;
+  /* The site's --muted is #66768b; that is 4.3:1 on the paper background, so text uses a
+     slightly deeper slate to stay AA on every surface. */
+  --color-muted: #5b6b80;
   --color-success: #15803d;
   --color-warning: #b45309;
   --color-danger: #b91c1c;
 
-  --radius-brand: 0.75rem;
+  --radius-brand: 0.125rem;
   --spacing-tap: 44px;
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, 'Times New Roman', serif;
+
+  --shadow-card: 0 1px 2px rgb(11 34 64 / 0.06), 0 8px 24px rgb(11 34 64 / 0.06);
 }
 
 @layer base {
@@ -31,9 +61,21 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-ink antialiased;
+    @apply bg-background text-ink font-sans antialiased;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-primary;
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+  ::selection {
+    background: rgb(249 115 22 / 0.2);
+  }
+  /* Serif headings, like the site. Newsreader is loaded at 400, 500 and 600, so feature pages
+     that set `font-semibold` on a heading get a real weight, not a synthesised one. */
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
   }
 }

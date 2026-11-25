@@ -17,7 +17,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
   return (
     <section
       className={cn(
-        'flex flex-col items-center gap-3 rounded-brand border border-dashed border-border',
+        'flex flex-col items-center gap-3 rounded-brand border border-dashed border-line',
         'bg-surface px-6 py-10 text-center',
         className,
       )}
@@ -27,7 +27,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
           {icon}
         </div>
       )}
-      <h2 className="text-lg font-semibold text-ink">{title}</h2>
+      <h2 className="text-2xl text-ink">{title}</h2>
       {description && <p className="max-w-prose text-sm text-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </section>

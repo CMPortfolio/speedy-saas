@@ -14,7 +14,14 @@
     "./more-from-naples-ai": "./src/more-from-naples-ai.tsx",
     "./customer-list": "./src/customer-list.tsx",
     "./csv-import": "./src/csv-import.tsx",
-    "./csv": "./src/csv.ts"
+    "./csv": "./src/csv.ts",
+    "./card": "./src/card.tsx",
+    "./alert": "./src/alert.tsx",
+    "./eyebrow": "./src/eyebrow.tsx",
+    "./page-header": "./src/page-header.tsx",
+    "./naples-mark": "./src/naples-mark.tsx",
+    "./og": "./src/og.tsx",
+    "./steps": "./src/steps.tsx"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

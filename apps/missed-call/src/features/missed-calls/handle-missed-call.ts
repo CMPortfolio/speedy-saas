@@ -5,7 +5,7 @@ import { withOptOutFooter } from '@speedy/sms/keywords';
 import { sendFirstOrFollowup } from '@speedy/sms/send';
 import { twimlHangup, twimlSay } from '@speedy/sms/twilio';
 
-import { isQuietNow, parseQuietHours } from './quiet-hours';
+import { pickTemplate } from './pick-template';
 import {
   serviceMissing,
   withService,
@@ -33,11 +33,6 @@ export interface MissedCallDeps {
 
 /** The statuses that mean "the owner did not pick up". `ringing` is the first ring of a direct or forwarded call. */
 const MISSED = new Set<CallStatusEvent['status']>(['ringing', 'no-answer', 'busy']);
-
-function pickTemplate(line: LineRecord, now: Date): string {
-  const quiet = isQuietNow(parseQuietHours(line.quietHours), line.timezone, now);
-  return quiet && line.afterHoursTemplate ? line.afterHoursTemplate : line.template;
-}
 
 function greeting(businessName: string, texting: boolean): string {
   const hello = `Thanks for calling ${businessName}. Sorry we missed you.`;

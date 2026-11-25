@@ -39,7 +39,7 @@ function DaySelect({ defaultValue, error }: { defaultValue: string; error?: stri
         className={cn(
           'min-h-tap w-full rounded-brand border bg-surface px-3 text-base text-ink',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-          error ? 'border-danger' : 'border-border',
+          error ? 'border-danger' : 'border-field',
         )}
       >
         <option value="" disabled>

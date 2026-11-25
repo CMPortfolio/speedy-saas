@@ -338,6 +338,107 @@ export type Database = {
           },
         ];
       };
+      practice_action_log: {
+        Row: {
+          created_at: string;
+          id: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          owner_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          owner_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      practice_calls: {
+        Row: {
+          caller_number: string;
+          created_at: string;
+          help_answered_at: string | null;
+          id: string;
+          opted_out: boolean;
+          owner_id: string;
+          received_at: string;
+          status: Database['missed_call']['Enums']['call_status'];
+          texted_at: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          caller_number: string;
+          created_at?: string;
+          help_answered_at?: string | null;
+          id?: string;
+          opted_out?: boolean;
+          owner_id: string;
+          received_at?: string;
+          status?: Database['missed_call']['Enums']['call_status'];
+          texted_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          caller_number?: string;
+          created_at?: string;
+          help_answered_at?: string | null;
+          id?: string;
+          opted_out?: boolean;
+          owner_id?: string;
+          received_at?: string;
+          status?: Database['missed_call']['Enums']['call_status'];
+          texted_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      practice_messages: {
+        Row: {
+          body: string;
+          call_id: string;
+          created_at: string;
+          direction: string;
+          id: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          call_id: string;
+          created_at?: string;
+          direction: string;
+          id?: string;
+          owner_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          call_id?: string;
+          created_at?: string;
+          direction?: string;
+          id?: string;
+          owner_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'practice_messages_call_id_owner_id_fkey';
+            columns: ['call_id', 'owner_id'];
+            isOneToOne: false;
+            referencedRelation: 'practice_calls';
+            referencedColumns: ['id', 'owner_id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -395,6 +496,16 @@ export type Database = {
           p_window_seconds: number;
         };
         Returns: boolean;
+      };
+      reserve_practice_action: {
+        Args: {
+          p_limit?: number;
+          p_max_calls?: number;
+          p_max_messages?: number;
+          p_owner_id: string;
+          p_window_seconds?: number;
+        };
+        Returns: string;
       };
     };
     Enums: {

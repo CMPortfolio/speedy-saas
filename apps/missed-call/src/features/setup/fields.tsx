@@ -72,7 +72,7 @@ export function TextArea({ id, label, value, onChange, error }: TextAreaProps) {
       <textarea
         id={id}
         name={id}
-        className={`${area} ${error ? 'border-danger' : 'border-border'}`}
+        className={`${area} ${error ? 'border-danger' : 'border-field'}`}
         value={value}
         maxLength={MAX_TEMPLATE}
         onChange={(e) => onChange(e.target.value)}

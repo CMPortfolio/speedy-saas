@@ -17,10 +17,12 @@ export interface MyLine {
   providerNumber: string | null;
   /** The owner's Twilio Messaging Service, admin-entered. */
   messagingServiceSid: string | null;
+  /** IANA zone the quiet hours are read in. */
+  timezone: string;
 }
 
 const COLUMNS =
-  'id, business_name, owner_cell, owner_cell_verified, template, after_hours_template, quiet_hours, provider_number, provider_messaging_service_sid';
+  'id, business_name, owner_cell, owner_cell_verified, template, after_hours_template, quiet_hours, provider_number, provider_messaging_service_sid, timezone';
 
 /** The signed-in owner's line, or null before setup. `client` carries their session, so RLS applies. */
 export async function getMyLine(client: SupabaseClient<Database>): Promise<MyLine | null> {
@@ -43,6 +45,7 @@ export async function getMyLine(client: SupabaseClient<Database>): Promise<MyLin
     quietHours: parseQuietHours(data.quiet_hours),
     providerNumber: data.provider_number,
     messagingServiceSid: data.provider_messaging_service_sid,
+    timezone: data.timezone,
   };
 }
 

@@ -7,6 +7,10 @@ export const tool = {
   name: '__NAME__',
   /** One line: what it does and what it won't. Replace the placeholder. */
   scope: 'SCOPE LINE: what this tool does for an owner, and what it will not do.',
+  /** Owner-facing landing headline: second person, plain, for the trade. */
+  headline: 'HEADLINE: what the owner gets, in their words.',
+  /** Owner-facing landing lede: what happens for them. `scope` is for the README and DoD only. */
+  lede: 'LEDE: one or two sentences on what happens for the owner. Second person, plain, no jargon.',
   /** Shown in <title> and link previews. Plain, specific, for the trade, not about AI. */
   description: 'DESCRIPTION: one sentence an owner would say to a friend.',
   /** Postgres schema for this tool's own tables. */

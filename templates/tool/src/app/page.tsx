@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
-import { cn } from '@speedy/ui/cn';
+import { buttonClasses } from '@speedy/ui/button';
+import { PageHeader } from '@speedy/ui/page-header';
+import { Steps } from '@speedy/ui/steps';
 
 import { tool } from '../../tool.config';
 
@@ -10,26 +12,29 @@ import { tool } from '../../tool.config';
  */
 export default function LandingPage() {
   return (
-    <section className="space-y-6 py-6">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold leading-tight">{tool.name}</h1>
-        <p className="text-lg text-muted">{tool.scope}</p>
-      </header>
-      <Link
-        href="/start"
-        data-testid="start"
-        className={cn(
-          'flex min-h-tap w-full items-center justify-center rounded-brand bg-primary px-6 text-lg font-medium',
-          'text-primary-foreground hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-        )}
-      >
-        Start
-      </Link>
-      <ul className="space-y-2 text-muted">
-        <li>Works on your phone, no app to install.</li>
-        <li>Under 3 minutes from opening it to done.</li>
-        <li>Sign in only if you want to come back to your work.</li>
-      </ul>
-    </section>
+    <div className="space-y-8 py-2">
+      <PageHeader
+        size="hero"
+        eyebrow="EYEBROW: who this is for"
+        title={tool.headline}
+        description={tool.lede}
+        actions={
+          <Link
+            href="/start"
+            data-testid="start"
+            className={buttonClasses({ size: 'lg', fullWidth: true })}
+          >
+            Start
+          </Link>
+        }
+      />
+      <Steps
+        items={[
+          { body: 'Works on your phone, no app to install.' },
+          { body: 'Under 3 minutes from opening it to done.' },
+          { body: 'Sign in only if you want to come back to your work.' },
+        ]}
+      />
+    </div>
   );
 }

@@ -10,5 +10,5 @@ export const contentType = 'image/png';
 
 /** Default link preview: tool name and scope on the brand colours. Share pages have their own. */
 export default function OpenGraphImage() {
-  return new ImageResponse(<BrandCard title={tool.name} subtitle={tool.description} />, size);
+  return new ImageResponse(<BrandCard title={tool.name} subtitle={tool.lede} />, size);
 }

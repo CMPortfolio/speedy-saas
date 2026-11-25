@@ -30,7 +30,7 @@ export interface CsvImportProps<P, D> {
 }
 
 const fieldClass =
-  'w-full rounded-brand border border-border bg-surface px-3 py-2 text-base text-ink ' +
+  'w-full rounded-brand border border-field bg-surface px-3 py-2 text-base text-ink ' +
   'placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
 
 function plural(n: number, word: string): string {

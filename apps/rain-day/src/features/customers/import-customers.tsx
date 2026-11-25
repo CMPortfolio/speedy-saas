@@ -83,7 +83,7 @@ export function ImportCustomers({ existingPhones }: { existingPhones: string[] }
                 id={dayId}
                 value={contactsDay}
                 onChange={(e) => setContactsDay(Number(e.target.value) as ServiceDay)}
-                className="min-h-tap rounded-brand border border-border bg-surface px-3 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="min-h-tap rounded-brand border border-field bg-surface px-3 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 {SERVICE_DAY_OPTIONS.map((day) => (
                   <option key={day.value} value={day.value}>

@@ -32,7 +32,7 @@ export function SignInForm({
   if (state.status === 'sent') {
     return (
       <section aria-live="polite" className="space-y-2">
-        <h1 className="text-xl font-semibold">Check your email</h1>
+        <h1 className="text-3xl text-ink">Check your email</h1>
         <p className="text-muted">
           We sent a sign-in link to <strong className="text-ink">{state.email}</strong>. Open it on
           this phone to continue. The link works for one hour.
@@ -44,7 +44,7 @@ export function SignInForm({
   return (
     <form action={action} className="space-y-4" noValidate>
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-3xl text-ink">{title}</h1>
         {reason ? <p className="text-muted">{reason}</p> : null}
       </div>
       {linkError ? (
@@ -57,7 +57,7 @@ export function SignInForm({
       ) : null}
       <input type="hidden" name="next" value={next} />
       <div className="space-y-1">
-        <label htmlFor="sign-in-email" className="block text-sm font-medium">
+        <label htmlFor="sign-in-email" className="block text-sm font-medium text-ink">
           Email
         </label>
         <input
@@ -70,7 +70,7 @@ export function SignInForm({
           placeholder="you@yourbusiness.com"
           aria-describedby={state.status === 'error' ? 'sign-in-error' : undefined}
           aria-invalid={state.status === 'error' || undefined}
-          className="min-h-tap w-full rounded-brand border border-border bg-surface px-3 text-base"
+          className="min-h-tap w-full rounded-brand border border-field bg-surface px-3 text-base text-ink placeholder:text-muted focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-brand"
         />
         {state.status === 'error' ? (
           <p id="sign-in-error" role="alert" className="text-sm text-danger">
@@ -81,11 +81,11 @@ export function SignInForm({
       <button
         type="submit"
         disabled={pending}
-        className="min-h-tap w-full rounded-brand bg-primary px-4 font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
+        className="min-h-tap w-full rounded-brand bg-primary px-5 text-[0.95rem] font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? 'Sending link…' : 'Email me a sign-in link'}
       </button>
-      <p className="text-xs text-muted">No password. We email you a link that signs you in.</p>
+      <p className="text-sm text-muted">No password. We email you a link that signs you in.</p>
     </form>
   );
 }

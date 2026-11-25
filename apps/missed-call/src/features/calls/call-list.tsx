@@ -1,31 +1,7 @@
-import { cn } from '@speedy/ui/cn';
 import { EmptyState } from '@speedy/ui/empty-state';
 
-import { setCallStatus } from './actions';
-import { smsHref, telHref, type CallRow } from './call-rows';
-
-const tap =
-  'inline-flex min-h-tap items-center justify-center rounded-brand border border-border bg-surface ' +
-  'px-4 text-base font-medium text-ink hover:bg-background focus-visible:outline-2 ' +
-  'focus-visible:outline-offset-2 focus-visible:outline-primary';
-
-function StatusButton({ call, status, label }: { call: CallRow; status: string; label: string }) {
-  const active = call.status === status;
-  return (
-    <form action={setCallStatus}>
-      <input type="hidden" name="callId" value={call.id} />
-      <input type="hidden" name="status" value={status} />
-      <button
-        type="submit"
-        aria-pressed={active}
-        disabled={active}
-        className={cn(tap, 'w-full', active && 'bg-primary text-primary-foreground')}
-      >
-        {label}
-      </button>
-    </form>
-  );
-}
+import type { CallRow } from './call-rows';
+import { RowActions } from './row-actions';
 
 export function CallList({ calls }: { calls: CallRow[] }) {
   if (calls.length === 0) {
@@ -59,19 +35,7 @@ export function CallList({ calls }: { calls: CallRow[] }) {
           ) : (
             <p className="text-base text-muted">No reply yet</p>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <a href={telHref(call.callerNumber)} className={tap}>
-              Call back
-            </a>
-            <a href={smsHref(call.callerNumber)} className={tap}>
-              Reply
-            </a>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <StatusButton call={call} status="called_back" label="Called back" />
-            <StatusButton call={call} status="booked" label="Booked" />
-            <StatusButton call={call} status="junk" label="Junk" />
-          </div>
+          <RowActions call={call} />
         </li>
       ))}
     </ul>

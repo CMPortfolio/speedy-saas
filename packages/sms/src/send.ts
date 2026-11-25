@@ -9,6 +9,11 @@ import type { SendTextOutput, SmsProvider } from './provider';
  * Opt-out state lives with the tool (its own schema), not in this package. A tool implements
  * this with two queries; tests use an in-memory Map.
  */
+/**
+ * `isOptedOut` means "this number texted STOP" (and not START since). A tool may use a wider
+ * store for the send guard (e.g. also its own blocked list) but must give `applyOptOutKeyword` the
+ * STOP list alone, or a blocked number's STOP would be mistaken for "already opted out" and lost.
+ */
 export interface OptOutStore {
   isOptedOut(number: E164): Promise<boolean>;
   setOptedOut(number: E164, optedOut: boolean): Promise<void>;

@@ -165,7 +165,9 @@ describe.skipIf(!enabled)('replies, the list and Junk', () => {
   });
 
   it('moving a call off Junk lifts the block', async () => {
-    const target = (await listCalls(a.db)).find((r) => r.callerNumber === callers.one)!;
+    const target = (await listCalls(a.db)).find(
+      (r) => r.callerNumber === callers.one && r.status === 'junk',
+    )!;
     await markCall(a.db, target.id, 'called_back');
     const blocked = await admin
       .schema('missed_call')
@@ -174,5 +176,69 @@ describe.skipIf(!enabled)('replies, the list and Junk', () => {
       .eq('line_id', a.lineId)
       .eq('number', callers.one);
     expect(blocked.data).toEqual([]);
+  });
+});
+
+describe.skipIf(!enabled)('STOP, HELP and direct updates', () => {
+  it('a STOP after Junk survives un-junking: the number is still never texted', async () => {
+    const target = (await listCalls(a.db)).find((r) => r.callerNumber === callers.two)!;
+    await markCall(a.db, target.id, 'junk');
+    await text(lineNumber.a, callers.two, 'STOP');
+    const reasons = async () =>
+      (
+        await admin
+          .schema('missed_call')
+          .from('blocked_numbers')
+          .select('reason')
+          .eq('line_id', a.lineId)
+          .eq('number', callers.two)
+      ).data;
+    expect(await reasons()).toEqual([{ reason: 'opted_out' }]);
+    await markCall(a.db, target.id, 'called_back');
+    expect(await reasons()).toEqual([{ reason: 'opted_out' }]);
+
+    await admin
+      .schema('missed_call')
+      .from('calls')
+      .update({ texted_at: new Date(Date.now() - 48 * 3600_000).toISOString() })
+      .eq('line_id', a.lineId);
+    sms.sent.length = 0;
+    await miss(lineNumber.a, callers.two);
+    expect(sms.sent).toHaveLength(0);
+  });
+
+  it('a caller who texted STOP can still reply to the owner, and START opts back in', async () => {
+    sms.sent.length = 0;
+    await text(lineNumber.a, callers.two, 'ok, tomorrow at 9 works');
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.to).toBe(OWNER_CELL);
+    await text(lineNumber.a, callers.two, 'START');
+    const left = await admin
+      .schema('missed_call')
+      .from('blocked_numbers')
+      .select('id')
+      .eq('line_id', a.lineId)
+      .eq('number', callers.two);
+    expect(left.data).toEqual([]);
+  });
+
+  it('answers HELP only to a number that called this line, once a day', async () => {
+    sms.sent.length = 0;
+    await text(lineNumber.a, `+1239559${n}`, 'HELP');
+    expect(sms.sent).toHaveLength(0);
+    await text(lineNumber.a, callers.two, 'HELP');
+    await text(lineNumber.a, callers.two, 'help');
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.to).toBe(callers.two);
+  });
+
+  it('owners cannot set a call status with a direct update, only through mark_call', async () => {
+    const row = (await listCalls(a.db))[0]!;
+    const direct = await a.db
+      .schema('missed_call')
+      .from('calls')
+      .update({ status: 'booked' })
+      .eq('id', row.id);
+    expect(direct.error).not.toBeNull();
   });
 });

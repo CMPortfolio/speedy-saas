@@ -90,10 +90,11 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
         c.query("update missed_call.lines set business_name = 'hacked' where id = $1", [aliceLine]),
       );
       expect(line.rowCount).toBe(0);
-      const call = await db.as(bob, (c) =>
-        c.query("update missed_call.calls set status = 'junk' where id = $1", [aliceCall]),
-      );
-      expect(call.rowCount).toBe(0);
+      await expect(
+        db.as(bob, (c) =>
+          c.query("update missed_call.calls set status = 'junk' where id = $1", [aliceCall]),
+        ),
+      ).rejects.toSatisfy(isDenied);
       const del = await db.as(bob, (c) =>
         c.query('delete from missed_call.lines where id = $1', [aliceLine]),
       );
@@ -145,12 +146,20 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       ).rejects.toSatisfy(isDenied);
     });
 
-    it('owners can set a call status but cannot insert, delete or edit anything else', async () => {
+    it('owners set a call status only through mark_call and cannot insert, delete or edit anything else', async () => {
       if (!db) return;
-      const ok = await db.as(alice, (c) =>
-        c.query("update missed_call.calls set status = 'called_back' where id = $1", [aliceCall]),
-      );
-      expect(ok.rowCount).toBe(1);
+      await db.as(alice, async (c) => {
+        await c.query("select missed_call.mark_call($1, 'called_back')", [aliceCall]);
+        const row = await c.query('select status from missed_call.calls where id = $1', [
+          aliceCall,
+        ]);
+        expect(row.rows[0]).toEqual({ status: 'called_back' });
+      });
+      await expect(
+        db.as(alice, (c) =>
+          c.query("update missed_call.calls set status = 'booked' where id = $1", [aliceCall]),
+        ),
+      ).rejects.toSatisfy(isDenied);
       await expect(
         db.as(alice, (c) =>
           c.query(
@@ -301,14 +310,14 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       const second = (await log(`CA-r2-${RUN}`)).rows[0] as { call_id: string };
       const reply = (body: string, id: string | null, who = caller) =>
         db!.asService(async (c) => {
-          const r = await c.query<{ call_id: string | null; outcome: string; forward: boolean }>(
+          const r = await c.query<{ call_id: string | null; outcome: string }>(
             'select * from missed_call.record_reply($1, $2, $3, $4)',
             [aliceLine, who, body, id],
           );
           return r.rows[0]!;
         });
       const first = await reply('leaking water heater', `SM-${RUN}-1`);
-      expect(first).toEqual({ call_id: second.call_id, outcome: 'recorded', forward: true });
+      expect(first).toEqual({ call_id: second.call_id, outcome: 'recorded' });
       expect((await reply('leaking water heater', `SM-${RUN}-1`)).outcome).toBe('duplicate');
       const status = await db.pool.query('select status from missed_call.calls where id = $1', [
         second.call_id,

@@ -75,6 +75,19 @@ describe('applyOptOutKeyword', () => {
     expect(store.optedOut.has(base.to)).toBe(false);
   });
 
+  it('treats START and YES from a number that never stopped as an ordinary message', async () => {
+    const store = memoryStore();
+    expect(await applyOptOutKeyword(store, base.to, 'start')).toBe(false);
+    expect(store.optedOut.size).toBe(0);
+  });
+
+  it('records a STOP from a number the tool had blocked for another reason', async () => {
+    // The STOP list is separate from the tool's own blocks, so the STOP is stored.
+    const store = memoryStore();
+    expect(await applyOptOutKeyword(store, base.to, 'stop')).toBe(true);
+    expect(store.optedOut.has(base.to)).toBe(true);
+  });
+
   it('ignores help and ordinary messages', async () => {
     const store = memoryStore();
     expect(await applyOptOutKeyword(store, base.to, 'help')).toBe(false);

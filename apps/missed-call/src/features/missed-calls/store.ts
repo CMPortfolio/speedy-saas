@@ -1,8 +1,9 @@
 import type { Database } from '@speedy/db/types';
-import { appError } from '@speedy/lib/result';
 import type { E164 } from '@speedy/lib/phone';
 import type { OptOutStore } from '@speedy/sms/send';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { anyBlockStore, fail, stopListStore, type Db } from './blocked-store';
 
 /** A line as the webhook handling needs it. */
 export interface LineRecord {
@@ -19,13 +20,12 @@ export interface LineRecord {
 
 export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked' | 'foreign' | 'rate_limited';
 
-export type ReplyOutcome = 'recorded' | 'duplicate' | 'blocked' | 'no_call';
+/** `rate_limited`: saved, but too many from this caller or line lately, so not forwarded. */
+export type ReplyOutcome = 'recorded' | 'rate_limited' | 'duplicate' | 'blocked' | 'no_call';
 
 export interface ReplyResult {
   callId: string | null;
   outcome: ReplyOutcome;
-  /** False once the line has had 30 replies forwarded in the last hour (the reply is still saved). */
-  forward: boolean;
 }
 
 export interface LogResult {
@@ -62,16 +62,12 @@ export interface MissedCallStore {
     body: string,
     providerMessageId: string,
   ): Promise<ReplyResult>;
-  /** Blocked numbers (Junk) and STOP replies for one line. */
+  /** True when HELP should be answered: the number has called this line and was not answered in 24 hours. */
+  claimHelpReply(lineId: string, caller: E164, body: string): Promise<boolean>;
+  /** The send guard: any block on the line, whether Junk or STOP. */
   optOuts(lineId: string): OptOutStore;
-}
-
-type Db = SupabaseClient<Database, 'missed_call'>;
-
-function fail(what: string, cause: unknown): never {
-  throw Object.assign(new Error(`missed_call store: ${what}`), {
-    appError: appError('db_error', what, cause),
-  });
+  /** Only who texted STOP (and not START since). Give this one to applyOptOutKeyword. */
+  stopList(lineId: string): OptOutStore;
 }
 
 /**
@@ -146,7 +142,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       });
       const row = data?.[0];
       if (error || !row) fail('record reply', error?.message);
-      return { callId: row.call_id, outcome: row.outcome as ReplyOutcome, forward: row.forward };
+      return { callId: row.call_id, outcome: row.outcome as ReplyOutcome };
     },
 
     async releaseTextClaim(callId) {
@@ -154,38 +150,17 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       if (error) fail('release text claim', error.message);
     },
 
-    optOuts(lineId) {
-      return {
-        async isOptedOut(number) {
-          const { data, error } = await db
-            .from('blocked_numbers')
-            .select('id')
-            .eq('line_id', lineId)
-            .eq('number', number)
-            .maybeSingle();
-          if (error) fail('check blocked number', error.message);
-          return data !== null;
-        },
-        async setOptedOut(number, optedOut) {
-          if (optedOut) {
-            const { error } = await db
-              .from('blocked_numbers')
-              .upsert(
-                { line_id: lineId, number, reason: 'opted_out' },
-                { onConflict: 'line_id,number', ignoreDuplicates: true },
-              );
-            if (error) fail('save opt-out', error.message);
-          } else {
-            const { error } = await db
-              .from('blocked_numbers')
-              .delete()
-              .eq('line_id', lineId)
-              .eq('number', number)
-              .eq('reason', 'opted_out');
-            if (error) fail('clear opt-out', error.message);
-          }
-        },
-      };
+    async claimHelpReply(lineId, caller, body) {
+      const { data, error } = await db.rpc('claim_help_reply', {
+        p_line_id: lineId,
+        p_caller: caller,
+        p_body: body,
+      });
+      if (error) fail('claim help reply', error.message);
+      return data === true;
     },
+
+    optOuts: (lineId) => anyBlockStore(db, lineId),
+    stopList: (lineId) => stopListStore(db, lineId),
   };
 }

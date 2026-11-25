@@ -338,9 +338,15 @@ export type Database = {
           p_caller: string;
           p_body: string;
           p_provider_message_id: string;
-          p_forward_cap?: number;
+          p_caller_hourly_cap?: number;
+          p_caller_daily_cap?: number;
+          p_line_hourly_cap?: number;
         };
-        Returns: { call_id: string | null; outcome: string; forward: boolean }[];
+        Returns: { call_id: string | null; outcome: string }[];
+      };
+      claim_help_reply: {
+        Args: { p_line_id: string; p_caller: string; p_body: string };
+        Returns: boolean;
       };
       mark_call: {
         Args: { p_call_id: string; p_status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk' };

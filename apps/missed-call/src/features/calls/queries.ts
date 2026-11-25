@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { toCallRows, type CallQueryRow, type CallRow } from './call-rows';
 
 /** The signed-in owner's missed calls, newest first. `client` carries their session, so RLS decides what they see. */
+// TODO(pagination): newest 100 only. Add a cursor on received_at when an owner has more than that.
 export async function listCalls(client: SupabaseClient<Database>, limit = 100): Promise<CallRow[]> {
   const { data, error } = await client
     .schema('missed_call')

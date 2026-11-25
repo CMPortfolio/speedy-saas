@@ -1,15 +1,15 @@
 import { logger } from '@speedy/lib/logger';
-import { formatUsPhone, isUsDomesticPhone, maskUsPhone } from '@speedy/lib/phone';
+import { formatUsPhone, isUsDomesticPhone, maskUsPhone, normalizeUsPhone } from '@speedy/lib/phone';
 import { classifyKeyword, helpReply } from '@speedy/sms/keywords';
 import type { InboundMessage, SmsProvider } from '@speedy/sms/provider';
 import { applyOptOutKeyword } from '@speedy/sms/send';
 
-import type { MissedCallStore } from './store';
+import type { LineRecord, MissedCallStore } from './store';
 
 const log = logger.child({ feature: 'replies' });
 
-/** One text message is at most 1600 characters; keep the forwarded lead well inside that. */
-const MAX_FORWARD = 1000;
+/** A forwarded lead is one or two text segments, not a wall of text. */
+const MAX_FORWARD = 300;
 
 export interface ReplyDeps {
   provider: SmsProvider;
@@ -21,7 +21,8 @@ export function leadText(caller: string, reply: string): string {
   const head = `New lead from ${formatUsPhone(caller)}: `;
   const room = MAX_FORWARD - head.length;
   const body = reply.trim();
-  return head + (body.length > room ? `${body.slice(0, room - 1)}…` : body);
+  const chars = Array.from(body); // by character, so an emoji is never cut in half
+  return head + (chars.length > room ? `${chars.slice(0, room - 1).join('')}…` : body);
 }
 
 /**
@@ -45,16 +46,21 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
   }
 
   const keyword = classifyKeyword(message.body);
-  if (keyword === 'stop' || keyword === 'start') {
-    await applyOptOutKeyword(store.optOuts(line.id), message.from, keyword);
+  if (keyword === 'stop') {
+    await applyOptOutKeyword(store.stopList(line.id), message.from, keyword);
     return;
   }
+  // START, YES and UNSTOP only mean "opt back in" from a number that had texted STOP. From anyone
+  // else, "Yes" is an answer to the owner's question and goes through as a normal reply.
+  if (keyword === 'start') {
+    if (await applyOptOutKeyword(store.stopList(line.id), message.from, keyword)) return;
+  }
   if (keyword === 'help') {
-    await provider.sendText({
-      to: message.from,
-      from: line.providerNumber,
-      body: helpReply(line.businessName),
-    });
+    const body = helpReply(line.businessName);
+    // Only to numbers that called this line, once a day; the carrier-level HELP reply is separate.
+    if (await store.claimHelpReply(line.id, message.from, body)) {
+      await provider.sendText({ to: message.from, from: line.providerNumber, body });
+    }
     return;
   }
 
@@ -69,18 +75,26 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
     caller: maskUsPhone(message.from),
     outcome: saved.outcome,
   });
-  if (saved.outcome !== 'recorded') return;
-  if (!saved.forward) {
-    log.warn('reply forward cap reached for line', { line: line.id });
+  if (saved.outcome === 'rate_limited') {
+    log.warn('reply saved but not forwarded: too many lately', { line: line.id });
     return;
   }
-  if (!isUsDomesticPhone(line.ownerCell)) {
+  if (saved.outcome !== 'recorded') return;
+  await forwardLead(provider, line, message);
+}
+
+async function forwardLead(
+  provider: SmsProvider,
+  line: LineRecord,
+  message: InboundMessage,
+): Promise<void> {
+  const ownerCell = normalizeUsPhone(line.ownerCell);
+  if (!ownerCell || !isUsDomesticPhone(ownerCell)) {
     log.warn('owner cell is not a US number, reply not forwarded', { line: line.id });
     return;
   }
-
   const sent = await provider.sendText({
-    to: line.ownerCell as `+1${string}`,
+    to: ownerCell,
     from: line.providerNumber,
     body: leadText(message.from, message.body),
   });

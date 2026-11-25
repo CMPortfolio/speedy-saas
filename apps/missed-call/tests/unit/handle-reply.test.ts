@@ -123,7 +123,7 @@ describe('handleReply', () => {
 
   it('trims very long replies in the forwarded text', async () => {
     await reply(text('x'.repeat(3000)));
-    expect(sms.sent[0]?.body.length).toBeLessThanOrEqual(1000);
+    expect(sms.sent[0]?.body.length).toBeLessThanOrEqual(300);
   });
 
   it('after Junk, a reply and a new call from the number get no texts', async () => {
@@ -149,11 +149,71 @@ describe('handleReply', () => {
     expect(mem.calls[0]?.status).toBe('replied');
     expect(sms.sent).toHaveLength(0);
   });
+});
 
-  it('forwards 30 replies in an hour, saves the rest without forwarding', async () => {
-    for (let i = 0; i < 35; i += 1)
-      await reply(text(`reply ${i}`, { providerMessageId: `SMC${i}` }));
+describe('handleReply keywords and caps', () => {
+  it('records and forwards a plain "Yes" from someone who never texted STOP', async () => {
+    await reply(text('Yes'));
+    expect(mem.calls[0]?.status).toBe('replied');
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.body).toBe('New lead from (239) 555-0123: Yes');
+    await reply(text('unstop'));
+    expect(sms.sent).toHaveLength(2);
+  });
+
+  it('treats YES from a number that texted STOP as opting back in, not as a lead', async () => {
+    await reply(text('STOP'));
+    await reply(text('YES'));
+    expect(await mem.store.stopList(line.id).isOptedOut(CALLER)).toBe(false);
+    expect(sms.sent).toHaveLength(0);
+  });
+
+  it('a STOP replaces a junk block, so un-junking later does not re-enable texts', async () => {
+    mem.block(line.id, CALLER, 'junk');
+    await reply(text('STOP'));
+    expect(await mem.store.stopList(line.id).isOptedOut(CALLER)).toBe(true);
+  });
+
+  it('records and forwards a reply from a number that texted STOP', async () => {
+    mem.block(line.id, CALLER, 'opted_out');
+    await reply(text('actually yes, tomorrow works'));
+    expect(mem.calls[0]?.status).toBe('replied');
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.to).toBe(OWNER);
+  });
+
+  it('answers HELP only to a number that called, and once a day', async () => {
+    await reply(text('HELP', { from: '+12395550999' }));
+    expect(sms.sent).toHaveLength(0);
+    await reply(text('HELP'));
+    await reply(text('help'));
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0]?.to).toBe(CALLER);
+  });
+
+  it('forwards the first 5 replies an hour from one caller and saves the rest', async () => {
+    for (let i = 0; i < 8; i += 1)
+      await reply(text(`reply ${i}`, { providerMessageId: `SMA${i}` }));
+    expect(sms.sent).toHaveLength(5);
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(8);
+  });
+
+  it('stops forwarding for the whole line after 30 replies in an hour', async () => {
+    for (let c = 0; c < 8; c += 1) {
+      const from = `+1239555${String(2000 + c)}` as InboundMessage['from'];
+      await mem.store.logMissedCall(line.id, from, `CAline${c}`, true);
+      for (let i = 0; i < 5; i += 1)
+        await reply(text(`hi ${i}`, { from, providerMessageId: `SML${c}-${i}` }));
+    }
     expect(sms.sent).toHaveLength(30);
-    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(35);
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(40);
+  });
+
+  it('cuts a long lead at 300 characters without splitting an emoji', async () => {
+    await reply(text('🔧'.repeat(500)));
+    const body = sms.sent[0]?.body ?? '';
+    expect(Array.from(body).length).toBeLessThanOrEqual(300);
+    expect(body.endsWith('…')).toBe(true);
+    expect(body).not.toContain('\ufffd');
   });
 });

@@ -12,6 +12,7 @@ const line: LineRecord = {
   providerNumber: '+12395550100',
   ownerCell: '+12395550101',
   ownerCellVerified: true,
+  messagingServiceSid: null,
   businessName: 'Gulf Coast Plumbing',
   template: 'Sorry we missed your call.',
   afterHoursTemplate: null,

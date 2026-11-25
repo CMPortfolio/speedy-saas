@@ -83,6 +83,11 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
   await forwardLead(provider, line, message);
 }
 
+/** The line's Messaging Service for a send, or nothing when it has none. */
+function serviceOf(line: LineRecord): { messagingServiceSid?: string } {
+  return line.messagingServiceSid ? { messagingServiceSid: line.messagingServiceSid } : {};
+}
+
 async function forwardLead(
   provider: SmsProvider,
   line: LineRecord,
@@ -102,6 +107,7 @@ async function forwardLead(
     to: ownerCell,
     from: line.providerNumber,
     body: leadText(message.from, message.body),
+    ...serviceOf(line),
   });
   // The reply is saved either way; the owner still sees it in the list.
   if (!sent.ok) log.error('could not forward the lead', { line: line.id, code: sent.error.code });
@@ -116,7 +122,12 @@ async function answerHelp(
   const body = helpReply(line.businessName);
   const claim = await deps.store.claimHelpReply(line.id, message.from, body);
   if (!claim) return;
-  const sent = await deps.provider.sendText({ to: message.from, from: line.providerNumber, body });
+  const sent = await deps.provider.sendText({
+    to: message.from,
+    from: line.providerNumber,
+    body,
+    ...serviceOf(line),
+  });
   if (!sent.ok) {
     log.warn('HELP answer not sent', { line: line.id, code: sent.error.code });
     await deps.store.releaseHelpClaim(claim);

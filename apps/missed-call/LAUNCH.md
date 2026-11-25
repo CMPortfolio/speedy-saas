@@ -67,7 +67,6 @@ a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
 | `SMS_PROVIDER`                   | yes                  | `twilio`. `fake` is refused in production and on Railway.                                                                                                |
 | `TWILIO_ACCOUNT_SID`             | yes                  | `AC...` from the Twilio console                                                                                                                          |
 | `TWILIO_AUTH_TOKEN`              | yes                  | server only. Sends texts and signs every webhook.                                                                                                        |
-| `TWILIO_MESSAGING_SERVICE_SID`   | optional             | `MG...`. When set, texts go out through the Messaging Service, which is what A2P registration attaches to.                                               |
 | `AUTH_COOKIE_DOMAIN`             | yes                  | `.naplesaiagency.com` (one sign-in across tools)                                                                                                         |
 | `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | yes                  | `.naplesaiagency.com`, the same value for the browser client. `NEXT_PUBLIC_*` is baked in at build time, so set it in Railway **before the build runs**. |
 | `LOG_LEVEL`                      | optional             | `info` (default)                                                                                                                                         |
@@ -81,8 +80,16 @@ a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
 
 ### Number and webhooks
 
-1. Buy a US local number (239 or the owner's area) in the Twilio console. In v1 an admin does this
-   per owner; there is no number buying in the app.
+1. **Per owner, in the Twilio console** (one Messaging Service per owner, because under A2P 10DLC a
+   Messaging Service links to one campaign and each owner has their own brand and campaign:
+   https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/direct-standard-onboarding):
+   - Buy a US local number (239 or the owner's area). In v1 an admin does this; there is no number
+     buying in the app.
+   - Create a **Messaging Service for that owner** and put that number in its sender pool.
+   - Link the service to the owner's A2P campaign once the brand and campaign are approved. The
+     number registers with the campaign when it is in the pool; the association is asynchronous, so
+     wait until the campaign shows as verified before sending
+     (https://www.twilio.com/docs/messaging/services).
 2. On the number, all `HTTP POST`:
 
    | Console field                 | URL                                                         |
@@ -94,9 +101,30 @@ a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
    `/api/sms/status` (delivery receipts) is **not used**: leave the Messaging Service delivery
    status callback empty.
 
-3. Give the number to the owner's line (SQL editor, service role):
-   `update missed_call.lines set provider_number = '+1239XXXXXXX' where id = '<line id>';`
-   The setup page then shows the owner their forwarding codes.
+3. Give the number **and the owner's Messaging Service** to the owner's line (SQL editor, service
+   role; owners cannot set either):
+   `update missed_call.lines set provider_number = '+1239XXXXXXX', provider_messaging_service_sid = 'MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' where id = '<line id>';`
+   The service SID must be `MG` plus 32 lowercase hex characters. The setup page then shows the
+   owner their forwarding codes.
+
+**How texts are sent.** Every text from a line (the auto-text, the forwarded lead, the HELP answer
+and the confirmation code) goes out **from the line's `provider_number` and through the line's
+`provider_messaging_service_sid`** when it has one. Sending both pins the sender and records the
+message against that owner's campaign, keeping the service's opt-out handling and logs
+(https://www.twilio.com/docs/messaging/services/services-send-messages). Sending from the number
+alone is probably still registered traffic, since the number is in the campaign's pool, but the
+service is then not recorded on the message and Twilio does not document it, so do not launch a
+line without its service SID.
+
+**There is no global `TWILIO_MESSAGING_SERVICE_SID`.** One service for every owner would break the
+one-brand-per-owner model, so the variable was removed; a leftover value in Railway is ignored.
+
+**Pre-launch check, per owner.** After the campaign is verified, send one test text from the line
+(call the number and let it ring out, or use the confirmation code) and open that message in the
+Twilio console (Monitor, Logs, Messaging): its **Messaging Service SID must be the owner's `MG...`**.
+If it is empty, or the send fails because the number is not in the service's sender pool (Twilio
+does not document that error, so try it in a subaccount first), fix the pool before showing the tool
+to the owner.
 
 ### Account protection (do before any real traffic)
 
@@ -132,8 +160,8 @@ the pages it comes from:
 - **Cost and timing:** Twilio passes carrier fees through at cost (roughly $0.0035 AT&T, $0.0045
   T-Mobile, $0.005 Verizon per segment; https://www.twilio.com/en-us/sms/pricing/us). Approval takes one or more business days, so plan
   multi-day waits per owner.
-- **Gate:** the tool is not shown to an owner until their brand and campaign are approved and the
-  number is attached to the Messaging Service.
+- **Gate:** the tool is not shown to an owner until their brand and campaign are approved, the
+  number is in their Messaging Service's sender pool and the pre-launch check above passes.
 
 **Open question for Chris, to settle with Twilio before launch:** the caller never opted in to texts;
 they phoned the business and we text them back. Confirm with Twilio how carriers treat a text-back

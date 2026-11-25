@@ -535,5 +535,55 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       );
       expect(cleared.rows[0]?.owner_cell_verified).toBe(false);
     });
+
+    it('provider_messaging_service_sid is admin-only and must look like a Messaging Service SID', async () => {
+      if (!db) return;
+      const sid = 'MG' + 'a'.repeat(32);
+      await expect(
+        db.as(alice, (c) =>
+          c.query(
+            'update missed_call.lines set provider_messaging_service_sid = $2 where id = $1',
+            [aliceLine, sid],
+          ),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      await expect(
+        db.as(alice, (c) =>
+          c.query(
+            `insert into missed_call.lines (owner_id, owner_cell, business_name, template, provider_messaging_service_sid)
+             values ($1, '+12395550105', 'Self Service', 'hi', $2)`,
+            [alice.id, sid],
+          ),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      for (const bad of ['MG123', 'SM' + 'a'.repeat(32), 'MG' + 'A'.repeat(32), '']) {
+        await expect(
+          db.asService((c) =>
+            c.query(
+              'update missed_call.lines set provider_messaging_service_sid = $2 where id = $1',
+              [aliceLine, bad],
+            ),
+          ),
+        ).rejects.toMatchObject({ code: '23514' });
+      }
+      await db.asService((c) =>
+        c.query('update missed_call.lines set provider_messaging_service_sid = $2 where id = $1', [
+          aliceLine,
+          sid,
+        ]),
+      );
+      const seen = await db.as(alice, (c) =>
+        c.query('select provider_messaging_service_sid as s from missed_call.lines where id = $1', [
+          aliceLine,
+        ]),
+      );
+      expect(seen.rows[0]).toEqual({ s: sid });
+      await db.asService((c) =>
+        c.query(
+          'update missed_call.lines set provider_messaging_service_sid = null where id = $1',
+          [aliceLine],
+        ),
+      );
+    });
   },
 );

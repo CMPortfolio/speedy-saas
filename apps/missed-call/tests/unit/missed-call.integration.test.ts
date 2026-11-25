@@ -155,3 +155,23 @@ describe.skipIf(!enabled)('missed-call webhook blocking and signatures', () => {
     expect(sms.sent).toHaveLength(before + 1);
   });
 });
+
+describe.skipIf(!enabled)('the line Messaging Service', () => {
+  it('texts from the line number through the Messaging Service stored on the line', async () => {
+    const service = 'MG' + 'c'.repeat(32);
+    const set = await db
+      .from('lines')
+      .update({ provider_messaging_service_sid: service })
+      .eq('id', lineId);
+    expect(set.error).toBeNull();
+    const before = sms.sent.length;
+    const { res } = await post(`+1239566${suffix}`);
+    expect(res.status).toBe(200);
+    expect(sms.sent).toHaveLength(before + 1);
+    expect(sms.sent.at(-1)).toMatchObject({ from: LINE_NUMBER, messagingServiceSid: service });
+    await db.from('lines').update({ provider_messaging_service_sid: null }).eq('id', lineId);
+    const { res: res2 } = await post(`+1239567${suffix}`);
+    expect(res2.status).toBe(200);
+    expect(sms.sent.at(-1)).not.toHaveProperty('messagingServiceSid');
+  });
+});

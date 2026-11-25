@@ -163,6 +163,7 @@ export type Database = {
           id: string;
           owner_id: string;
           provider_number: string | null;
+          provider_messaging_service_sid: string | null;
           owner_cell: string;
           owner_cell_verified: boolean;
           business_name: string;
@@ -177,6 +178,7 @@ export type Database = {
           id?: string;
           owner_id: string;
           provider_number?: string | null;
+          provider_messaging_service_sid?: string | null;
           owner_cell: string;
           owner_cell_verified?: boolean;
           business_name: string;
@@ -191,6 +193,7 @@ export type Database = {
           id?: string;
           owner_id?: string;
           provider_number?: string | null;
+          provider_messaging_service_sid?: string | null;
           owner_cell?: string;
           owner_cell_verified?: boolean;
           business_name?: string;

@@ -10,6 +10,8 @@ import { fail, type Db } from './store-db';
 export interface LineRecord {
   id: string;
   providerNumber: E164;
+  /** The owner's own Twilio Messaging Service (MG...), admin-entered. Passed on every send. */
+  messagingServiceSid: string | null;
   ownerCell: string;
   /** True once the owner confirmed the cell with a one-time code. Replies are not forwarded before. */
   ownerCellVerified: boolean;
@@ -94,7 +96,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       const { data, error } = await db
         .from('lines')
         .select(
-          'id, provider_number, owner_cell, owner_cell_verified, business_name, template, after_hours_template, quiet_hours, timezone',
+          'id, provider_number, provider_messaging_service_sid, owner_cell, owner_cell_verified, business_name, template, after_hours_template, quiet_hours, timezone',
         )
         .eq('provider_number', number)
         .maybeSingle();
@@ -103,6 +105,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       return {
         id: data.id,
         providerNumber: number,
+        messagingServiceSid: data.provider_messaging_service_sid,
         ownerCell: data.owner_cell,
         ownerCellVerified: data.owner_cell_verified,
         businessName: data.business_name,

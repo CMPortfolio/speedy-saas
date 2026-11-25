@@ -50,6 +50,7 @@ const baseLine: CellLine = {
   ownerCell: CELL,
   ownerCellVerified: false,
   providerNumber: '+12395550100',
+  messagingServiceSid: null,
   businessName: 'Gulf Coast Plumbing',
 };
 const lastCode = () => /\b(\d{6})\b/.exec(sms.sent.at(-1)?.body ?? '')?.[1] ?? '';
@@ -115,6 +116,22 @@ describe('start', () => {
     sms.failNext({ code: 'invalid_number', message: 'x' });
     const r2 = await verifier.start(OWNER);
     expect(!r2.ok && r2.code).toBe('invalid_number');
+  });
+});
+
+describe('start through a Messaging Service', () => {
+  it('texts the code from the line number through the line Messaging Service', async () => {
+    line = { ...baseLine, messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' };
+    await verifier.start(OWNER);
+    expect(sms.sent[0]).toMatchObject({
+      from: '+12395550100',
+      messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    });
+  });
+
+  it('sends without one when the line has none', async () => {
+    await verifier.start(OWNER);
+    expect(sms.sent[0]).not.toHaveProperty('messagingServiceSid');
   });
 });
 

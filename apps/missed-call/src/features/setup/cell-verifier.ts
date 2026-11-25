@@ -18,6 +18,8 @@ export interface CellLine {
   ownerCell: string;
   ownerCellVerified: boolean;
   providerNumber: string | null;
+  /** The owner's Twilio Messaging Service, so the code goes out through their own campaign. */
+  messagingServiceSid: string | null;
   businessName: string;
 }
 
@@ -99,6 +101,7 @@ export function createOwnerCellVerifier(deps: CellVerifierDeps): OwnerCellVerifi
           subject: ownerId,
           phone,
           from,
+          ...(line.messagingServiceSid ? { messagingServiceSid: line.messagingServiceSid } : {}),
           message: (code) =>
             `Your ${line.businessName} missed-call code is ${code}. It expires in 10 minutes.`,
         },

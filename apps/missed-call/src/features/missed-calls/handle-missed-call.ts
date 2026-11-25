@@ -40,6 +40,20 @@ function greeting(businessName: string, texting: boolean): string {
     : `${hello} Please try again soon.`;
 }
 
+/** Text the caller from the line's number, through the line's own Messaging Service when it has one. */
+function sendTemplate(
+  deps: MissedCallDeps,
+  line: LineRecord,
+  text: { to: CallStatusEvent['from']; body: string; isFirstContact: boolean },
+) {
+  return sendFirstOrFollowup(deps.provider, deps.store.optOuts(line.id), {
+    ...text,
+    from: line.providerNumber,
+    businessName: line.businessName,
+    messagingServiceSid: line.messagingServiceSid ?? undefined,
+  });
+}
+
 /**
  * Called from the voice webhook once the provider signature has been verified. Logs the missed
  * call, texts the caller the owner's template unless they were texted in the last 24 hours or are
@@ -51,7 +65,7 @@ export async function handleMissedCall(
   event: CallStatusEvent,
 ): Promise<string | undefined> {
   if (event.direction !== 'inbound' || !MISSED.has(event.status)) return undefined;
-  const { provider, store } = deps;
+  const { store } = deps;
   const now = deps.now?.() ?? new Date();
 
   const line = await store.findLineByNumber(event.to);
@@ -79,11 +93,9 @@ export async function handleMissedCall(
   const body = pickTemplate(line, now);
   // What the caller actually receives: the first text to a number also carries the opt-out line.
   const sentBody = logged.firstContact ? withOptOutFooter(body, line.businessName) : body;
-  const sending = sendFirstOrFollowup(provider, store.optOuts(line.id), {
+  const sending = sendTemplate(deps, line, {
     to: event.from,
-    from: line.providerNumber,
     body,
-    businessName: line.businessName,
     isFirstContact: logged.firstContact,
   });
 

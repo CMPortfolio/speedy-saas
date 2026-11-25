@@ -14,6 +14,7 @@ const line: LineRecord = {
   providerNumber: LINE_NUMBER,
   ownerCell: '+12395550101',
   ownerCellVerified: true,
+  messagingServiceSid: null,
   businessName: 'Gulf Coast Plumbing',
   template: 'Sorry we missed your call. What do you need?',
   afterHoursTemplate: 'We are closed. We will call you first thing in the morning.',
@@ -295,5 +296,23 @@ describe('handleMissedCall failures and late sends', () => {
     const first = await run(event());
     const retry = await run(event());
     expect(retry).toBe(first);
+  });
+
+  it('sends from the line number through the line Messaging Service when it has one', async () => {
+    mem = memoryStore(
+      [{ ...line, messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }],
+      () => clock,
+    );
+    await run(event());
+    expect(sms.sent[0]).toMatchObject({
+      from: LINE_NUMBER,
+      messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    });
+  });
+
+  it('sends with no Messaging Service when the line has none', async () => {
+    await run(event());
+    expect(sms.sent[0]).toMatchObject({ from: LINE_NUMBER });
+    expect(sms.sent[0]).not.toHaveProperty('messagingServiceSid');
   });
 });

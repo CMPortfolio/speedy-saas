@@ -16,6 +16,7 @@ const line: LineRecord = {
   providerNumber: LINE_NUMBER,
   ownerCell: OWNER,
   ownerCellVerified: true,
+  messagingServiceSid: null,
   businessName: 'Gulf Coast Plumbing',
   template: 'Sorry we missed your call. What do you need?',
   afterHoursTemplate: null,
@@ -252,5 +253,20 @@ describe('handleReply keywords and caps', () => {
     for (let i = 0; i < 60; i += 1) await reply(text(`r${i}`, { providerMessageId: `SMD${i}` }));
     expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(50);
     expect(sms.sent).toHaveLength(5);
+  });
+
+  it('forwards the lead and answers HELP through the line Messaging Service', async () => {
+    mem = memoryStore([{ ...line, messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }]);
+    await miss();
+    sms.reset();
+    await reply(text('need a quote'));
+    await reply(text('HELP'));
+    expect(sms.sent).toHaveLength(2);
+    for (const sent of sms.sent) {
+      expect(sent).toMatchObject({
+        from: LINE_NUMBER,
+        messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      });
+    }
   });
 });

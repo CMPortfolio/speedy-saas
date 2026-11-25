@@ -74,7 +74,9 @@ export function createLineAccess(
     async loadLine(ownerId): Promise<CellLine | null> {
       const { data, error } = await db
         .from('lines')
-        .select('owner_cell, owner_cell_verified, provider_number, business_name')
+        .select(
+          'owner_cell, owner_cell_verified, provider_number, provider_messaging_service_sid, business_name',
+        )
         .eq('owner_id', ownerId)
         .maybeSingle();
       if (error) throw new Error(`load line: ${error.message}`);
@@ -83,6 +85,7 @@ export function createLineAccess(
         ownerCell: data.owner_cell,
         ownerCellVerified: data.owner_cell_verified,
         providerNumber: data.provider_number,
+        messagingServiceSid: data.provider_messaging_service_sid,
         businessName: data.business_name,
       };
     },

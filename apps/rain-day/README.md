@@ -2,7 +2,7 @@ When weather wipes out a day, the owner picks the day, picks the new day, and ev
 
 # Rain Day
 
-Speedy SaaS tool `rain-day`. Lives at `https://rain-day.naplesaiagency.com`. Tickets: [R1 scaffold](https://app.clickup.com/t/1dfc7p9xnj1), [R2 settings and customers](https://app.clickup.com/t/1dfc7p9xnj2).
+Speedy SaaS tool `rain-day`. Lives at `https://rain-day.naplesaiagency.com`. Tickets: [R1 scaffold](https://app.clickup.com/t/1dfc7p9xnj1), [R2 settings and customers](https://app.clickup.com/t/1dfc7p9xnj2), [R3 send flow](https://app.clickup.com/t/1dfc7p9xnj3), [R4 replies](https://app.clickup.com/t/1dfc7p9xnj4), [R5 landing page and end-to-end](https://app.clickup.com/t/1dfc7p9xnj5).
 
 The moment: 2 PM, a storm parks over the route, 14 Tuesday customers get their own text in one
 tap. Sign-in is required because the tool keeps customer phone numbers.
@@ -15,6 +15,11 @@ pnpm dev --filter @speedy/rain-day                        # http://localhost:300
 pnpm turbo run typecheck lint test --filter @speedy/rain-day...
 pnpm test:e2e --filter @speedy/rain-day                   # builds, starts, runs Playwright on a phone viewport
 ```
+
+`pnpm test:e2e` needs the local Supabase stack (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` in the environment). It starts the app with the fake SMS provider
+(`SMS_PROVIDER=fake`, `ALLOW_FAKE_SMS=1`, set by `playwright.config.ts` for that run only), signs in with a
+magic-link token, imports `tests/fixtures/customers.csv`, runs a rain day and checks the sends.
 
 The RLS tests under `tests/unit/` run against `DATABASE_URL` when `DB_TESTS=1` (or in CI) and skip
 otherwise. Start a database with `pnpm --filter @speedy/db db:start && pnpm --filter @speedy/db db:reset`.

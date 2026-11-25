@@ -3,7 +3,7 @@ import type { Database } from '@speedy/db/types';
 import { logger } from '@speedy/lib/logger';
 import type { E164 } from '@speedy/lib/phone';
 
-import { codeOf } from '@/features/rain-day/dispatch';
+import { codeOf } from '@/lib/error-code';
 
 import type { InboundStore, RecordedReply, ReplyStore } from './handle-inbound';
 
@@ -131,7 +131,7 @@ export function createReplyStore(db: Db, ownerId: string): ReplyStore {
     async claimHelp(phone: E164) {
       const { data, error } = await db
         .schema('rain_day')
-        .rpc('claim_help_reply', { p_phone: phone });
+        .rpc('claim_help_reply', { p_owner_id: ownerId, p_phone: phone });
       if (error) throw error;
       return data;
     },

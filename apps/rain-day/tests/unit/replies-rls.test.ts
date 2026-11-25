@@ -130,7 +130,9 @@ describe.skipIf(!enabled)('rain_day R4 RLS', TIMEOUT, () => {
     await expect(db.as(alice, (c) => c.query(RECORD, args))).rejects.toSatisfy(isDenied);
     await expect(db.as(null, (c) => c.query(RECORD, args))).rejects.toSatisfy(isDenied);
     await expect(
-      db.as(alice, (c) => c.query('select rain_day.claim_help_reply($1)', ['+12395550311'])),
+      db.as(alice, (c) =>
+        c.query('select rain_day.claim_help_reply($1, $2)', [alice.id, '+12395550311']),
+      ),
     ).rejects.toSatisfy(isDenied);
   });
 });
@@ -177,20 +179,25 @@ describe.skipIf(!enabled)('rain_day verification limits', TIMEOUT, () => {
     expect(counts.sort()).toEqual([1, 2, 3]);
   });
 
-  it('claim_help_reply is true once per number per 24 hours', async () => {
+  it('claim_help_reply is true once per owner and number per 24 hours, and never shared between owners', async () => {
     if (!db) return;
     const phone = freshPhone();
-    const claim = () =>
+    const [one, two] = [await db.createUser(), await db.createUser()];
+    const claim = (who: TestUser) =>
       db!.asService(
         async (c) =>
-          (await c.query('select rain_day.claim_help_reply($1) as ok', [phone])).rows[0].ok,
+          (await c.query('select rain_day.claim_help_reply($1, $2) as ok', [who.id, phone])).rows[0]
+            .ok as boolean,
       );
-    expect([await claim(), await claim()]).toEqual([true, false]);
+    expect([await claim(one), await claim(one)]).toEqual([true, false]);
+    // The same number asking HELP at another owner's number gets its own answer.
+    expect(await claim(two)).toBe(true);
     await db.pool.query(
-      "update rain_day.help_replies set last_sent_at = now() - interval '25 hours' where phone = $1",
-      [phone],
+      "update rain_day.help_replies set last_sent_at = now() - interval '25 hours' where owner_id = $1 and phone = $2",
+      [one.id, phone],
     );
-    expect(await claim()).toBe(true);
+    expect(await claim(one)).toBe(true);
+    expect(await claim(two)).toBe(false);
   });
 });
 

@@ -13,6 +13,7 @@ export interface SendQueuedInput {
   db: Db;
   /** Service-role client, used only to record results on the rows just created. */
   service: Db;
+  ownerId: string;
   rescheduleId: string;
   customers: readonly Customer[];
   provider: SmsProvider;
@@ -68,7 +69,7 @@ export async function sendQueuedMessages(input: SendQueuedInput): Promise<SendQu
 
   const outcome = await dispatchMessages({
     provider: input.provider,
-    store: createDispatchStore(input.service, input.provider.name),
+    store: createDispatchStore(input.service, input.provider.name, input.ownerId),
     rows,
     from: input.from,
     businessName: input.businessName,

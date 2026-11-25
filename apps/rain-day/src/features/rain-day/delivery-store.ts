@@ -40,15 +40,17 @@ export async function applyDeliveryEvent(
 /**
  * Dispatch store backed by the service-role client, scoped to one owner. The service role
  * bypasses RLS, so every query names the owner or the exact message id. A number counts as opted
- * out if ANY owner has a STOP on file for it: STOP is to the business number, not to one owner.
+ * out only if THIS owner has a STOP on file for it: STOP is to one sender number, so it does not
+ * reach another owner's texts to the same person.
  */
-export function createDispatchStore(db: Db, providerName: string): DispatchStore {
+export function createDispatchStore(db: Db, providerName: string, ownerId: string): DispatchStore {
   return {
     async isOptedOut(phone: E164) {
       const { data, error } = await db
         .schema('rain_day')
         .from('opt_outs')
         .select('id')
+        .eq('owner_id', ownerId)
         .eq('phone', phone)
         .limit(1);
       if (error) throw error;

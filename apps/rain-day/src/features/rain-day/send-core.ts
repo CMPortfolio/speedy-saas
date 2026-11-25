@@ -35,6 +35,7 @@ export interface SendContext {
   /** The signed-in owner's client. */
   db: Db;
   service: Db;
+  ownerId: string;
   /** That day's customers, read through RLS. */
   customers: readonly Customer[];
   optedOutPhones: ReadonlySet<string>;
@@ -87,6 +88,7 @@ export async function runSend(ctx: SendContext, request: SendInput): Promise<Sen
   const sent = await sendQueuedMessages({
     db: ctx.db,
     service: ctx.service,
+    ownerId: ctx.ownerId,
     rescheduleId: row.reschedule_id,
     customers: ctx.customers,
     provider: ctx.provider,

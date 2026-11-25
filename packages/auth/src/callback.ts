@@ -1,6 +1,7 @@
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { appOrigin } from './app-origin';
 import { safeNext } from './safe-next';
 import { createServerSupabase } from './server';
 
@@ -12,7 +13,9 @@ import { createServerSupabase } from './server';
  *   export { GET } from '@speedy/auth/callback';
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const { searchParams, origin } = request.nextUrl;
+  const { searchParams } = request.nextUrl;
+  // Not request.nextUrl.origin: behind Railway that is the container address, not the public one.
+  const origin = appOrigin(request.nextUrl.origin);
   const next = safeNext(searchParams.get('next'));
   const code = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');

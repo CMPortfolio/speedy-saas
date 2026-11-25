@@ -13,6 +13,7 @@
     "./actions": "./src/actions.ts",
     "./callback": "./src/callback.ts",
     "./safe-next": "./src/safe-next.ts",
+    "./app-origin": "./src/app-origin.ts",
     "./cookies": "./src/cookies.ts"
   },
   "scripts": {

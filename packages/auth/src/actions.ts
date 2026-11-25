@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
+import { appOrigin } from './app-origin';
 import { safeNext } from './safe-next';
 import { createServerSupabase } from './server';
 
@@ -29,7 +30,8 @@ export async function sendMagicLink(
       message: parsed.error.issues[0]?.message ?? 'Check the email address.',
     };
   }
-  const origin = (await headers()).get('origin') ?? process.env.APP_URL ?? 'http://localhost:3000';
+  // APP_URL first: the Origin header is chosen by whoever sends the request.
+  const origin = appOrigin((await headers()).get('origin') ?? undefined);
   const next = safeNext(parsed.data.next);
   const supabase = await createServerSupabase();
   const { error } = await supabase.auth.signInWithOtp({

@@ -156,6 +156,181 @@ export type Database = {
     Enums: { membership_role: 'owner' | 'member' };
     CompositeTypes: Record<never, never>;
   };
+  missed_call: {
+    Tables: {
+      lines: {
+        Row: {
+          id: string;
+          owner_id: string;
+          provider_number: string | null;
+          owner_cell: string;
+          business_name: string;
+          template: string;
+          after_hours_template: string | null;
+          quiet_hours: Json | null;
+          timezone: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          provider_number?: string | null;
+          owner_cell: string;
+          business_name: string;
+          template: string;
+          after_hours_template?: string | null;
+          quiet_hours?: Json | null;
+          timezone?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          provider_number?: string | null;
+          owner_cell?: string;
+          business_name?: string;
+          template?: string;
+          after_hours_template?: string | null;
+          quiet_hours?: Json | null;
+          timezone?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      calls: {
+        Row: {
+          id: string;
+          line_id: string;
+          caller_number: string;
+          provider_call_sid: string;
+          received_at: string;
+          status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk';
+          texted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          line_id: string;
+          caller_number: string;
+          provider_call_sid: string;
+          received_at?: string;
+          status?: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk';
+          texted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          line_id?: string;
+          caller_number?: string;
+          provider_call_sid?: string;
+          received_at?: string;
+          status?: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk';
+          texted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'calls_line_id_fkey';
+            columns: ['line_id'];
+            isOneToOne: false;
+            referencedRelation: 'lines';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      messages: {
+        Row: {
+          id: string;
+          call_id: string;
+          direction: 'in' | 'out';
+          body: string;
+          provider_message_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          call_id: string;
+          direction: 'in' | 'out';
+          body: string;
+          provider_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          call_id?: string;
+          direction?: 'in' | 'out';
+          body?: string;
+          provider_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'messages_call_id_fkey';
+            columns: ['call_id'];
+            isOneToOne: false;
+            referencedRelation: 'calls';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      blocked_numbers: {
+        Row: {
+          id: string;
+          line_id: string;
+          number: string;
+          reason: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          line_id: string;
+          number: string;
+          reason?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          line_id?: string;
+          number?: string;
+          reason?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'blocked_numbers_line_id_fkey';
+            columns: ['line_id'];
+            isOneToOne: false;
+            referencedRelation: 'lines';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+    };
+    Views: Record<never, never>;
+    Functions: {
+      log_missed_call: {
+        Args: { p_line_id: string; p_caller: string; p_call_sid: string; p_cooldown?: string };
+        Returns: { call_id: string; outcome: string; first_contact: boolean }[];
+      };
+    };
+    Enums: {
+      call_status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk';
+      message_direction: 'in' | 'out';
+    };
+    CompositeTypes: Record<never, never>;
+  };
 };
 
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];

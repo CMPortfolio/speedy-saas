@@ -1,5 +1,6 @@
 import { authEnvSchema } from '@speedy/auth/env';
 import { createEnv, envHelpers } from '@speedy/lib/env';
+import { smsEnvSchema } from '@speedy/sms/env';
 import { z } from 'zod';
 
 /**
@@ -9,7 +10,8 @@ import { z } from 'zod';
 export const env = createEnv({
   server: {
     ...authEnvSchema.server,
-    APP_URL: z.url().default('http://localhost:3001'),
+    ...smsEnvSchema.server,
+    APP_URL: z.url().default('http://localhost:3002'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     NODE_ENV: envHelpers.nodeEnv,
   },

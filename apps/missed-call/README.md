@@ -8,10 +8,14 @@ Speedy SaaS tool `missed-call`. Lives at `https://missed-call.naplesaiagency.com
 
 ```bash
 cp apps/missed-call/.env.example apps/missed-call/.env.local   # fill in the shared Supabase values
-pnpm dev --filter @speedy/missed-call                        # http://localhost:3001
+pnpm dev --filter @speedy/missed-call                        # http://localhost:3002
 pnpm turbo run typecheck lint test --filter @speedy/missed-call...
 pnpm test:e2e --filter @speedy/missed-call                   # builds, starts, runs Playwright on a phone viewport
 ```
+
+## Webhooks
+
+`POST /api/voice/incoming` is the only provider webhook so far. Point the Twilio number's "A call comes in" and "Call status changes" at it (see `packages/sms/README.md`). Each request is checked against Twilio's signature first; a bad or missing one gets a 403 and nothing is read or written. A call that rings (direct, or forwarded by the owner's no-answer forwarding) is logged as missed, the caller gets the owner's template (the after-hours one outside the line's quiet hours, America/New_York unless the line says otherwise), then a short spoken greeting. The same caller is texted at most once in 24 hours, blocked numbers never, and a retried webhook never twice. Locally `SMS_PROVIDER=fake` sends nothing.
 
 ## Layout
 

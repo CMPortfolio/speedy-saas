@@ -14,7 +14,7 @@ export const tool = {
   /** Postgres schema for this tool's own tables. */
   schema: 'missed_call',
   /** Local dev port. Production uses $PORT from Railway. */
-  devPort: 3001,
+  devPort: 3002,
   /** Production URL. Set when the subdomain exists. */
   url: 'https://missed-call.naplesaiagency.com',
 } as const;

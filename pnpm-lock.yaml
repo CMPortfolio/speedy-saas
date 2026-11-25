@@ -152,6 +152,9 @@ importers:
       '@speedy/registry':
         specifier: workspace:*
         version: link:../../packages/registry
+      '@speedy/sms':
+        specifier: workspace:*
+        version: link:../../packages/sms
       '@speedy/ui':
         specifier: workspace:*
         version: link:../../packages/ui

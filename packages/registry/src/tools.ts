@@ -92,5 +92,15 @@ export const TOOLS: readonly Tool[] = [
     status: 'live',
     kind: 'tool',
   },
+  {
+    slug: 'rain-day',
+    name: 'Rain Day',
+    pitch: 'Rained out? Pick the day and the new day; every customer gets their own text.',
+    // Railway project "speedy-saas", service rain-day. Set live when the engineer says so.
+    url: 'https://rain-day.naplesaiagency.com',
+    tradeTags: ['lawn', 'pool', 'outdoor', 'home-services'],
+    status: 'building',
+    kind: 'tool',
+  },
   // new-tool: entries are added above this line. Keep this comment.
 ];

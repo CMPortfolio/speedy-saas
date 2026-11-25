@@ -24,13 +24,12 @@ No barrel file; import each path (CLAUDE.md rule 4).
 
 Add to the tool's `.env.example` and `src/config/env.ts` (`...smsEnvSchema.server`):
 
-| Variable                       | Required           | Meaning                                                                        |
-| ------------------------------ | ------------------ | ------------------------------------------------------------------------------ |
-| `SMS_PROVIDER`                 | no, default `fake` | `twilio` or `fake`. `fake` is refused in production by `createSmsProvider`.    |
-| `TWILIO_ACCOUNT_SID`           | with `twilio`      | `AC…` from the Twilio console                                                  |
-| `TWILIO_AUTH_TOKEN`            | with `twilio`      | Signs webhooks and authenticates sends. Server only, never logged.             |
-| `TWILIO_MESSAGING_SERVICE_SID` | optional           | `MG…`; when set, texts go out through the Messaging Service instead of `from`. |
-| `SMS_WEBHOOK_PUBLIC_URL`       | optional           | Public origin for signature checks when it differs from `APP_URL`.             |
+| Variable                 | Required           | Meaning                                                                     |
+| ------------------------ | ------------------ | --------------------------------------------------------------------------- |
+| `SMS_PROVIDER`           | no, default `fake` | `twilio` or `fake`. `fake` is refused in production by `createSmsProvider`. |
+| `TWILIO_ACCOUNT_SID`     | with `twilio`      | `AC…` from the Twilio console                                               |
+| `TWILIO_AUTH_TOKEN`      | with `twilio`      | Signs webhooks and authenticates sends. Server only, never logged.          |
+| `SMS_WEBHOOK_PUBLIC_URL` | optional           | Public origin for signature checks when it differs from `APP_URL`.          |
 
 ## Wiring a tool
 

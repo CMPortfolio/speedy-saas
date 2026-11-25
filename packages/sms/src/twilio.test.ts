@@ -230,20 +230,60 @@ describe('twilioProvider', () => {
     expect(create).toHaveBeenCalledWith({ to: '+12395550123', from: '+12395550100', body: 'Hi' });
   });
 
-  it('prefers the Messaging Service and adds the status callback when configured', async () => {
+  it('sends from the number AND the Messaging Service when the send names one', async () => {
+    const { client: c, create } = client();
+    const p = twilioProvider({ accountSid: ACCOUNT_SID, authToken: AUTH_TOKEN, client: c });
+    await p.sendText({
+      to: '+12395550123',
+      from: '+12395550100',
+      body: 'Hi',
+      messagingServiceSid: 'MG00000000000000000000000000000000',
+    });
+    expect(create).toHaveBeenCalledWith({
+      to: '+12395550123',
+      from: '+12395550100',
+      body: 'Hi',
+      messagingServiceSid: 'MG00000000000000000000000000000000',
+    });
+  });
+
+  it('uses a different Messaging Service per send, never one for the whole provider', async () => {
+    const { client: c, create } = client();
+    const p = twilioProvider({ accountSid: ACCOUNT_SID, authToken: AUTH_TOKEN, client: c });
+    const base = { to: '+12395550123' as const, body: 'Hi' };
+    await p.sendText({
+      ...base,
+      from: '+12395550100',
+      messagingServiceSid: 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    });
+    await p.sendText({
+      ...base,
+      from: '+12395550101',
+      messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    });
+    await p.sendText({ ...base, from: '+12395550102' });
+    const sentParams = create.mock.calls as unknown as [Record<string, unknown>][];
+    expect(sentParams.map(([params]) => [params.from, params.messagingServiceSid])).toEqual([
+      ['+12395550100', 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+      ['+12395550101', 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'],
+      ['+12395550102', undefined],
+    ]);
+    expect(sentParams[2]?.[0]).not.toHaveProperty('messagingServiceSid');
+  });
+
+  it('adds the status callback when configured', async () => {
     const { client: c, create } = client();
     const p = twilioProvider({
       accountSid: ACCOUNT_SID,
       authToken: AUTH_TOKEN,
-      messagingServiceSid: 'MG00000000000000000000000000000000',
       statusCallbackUrl: 'https://missed-call.naplesaiagency.com/api/sms/status',
       client: c,
     });
     await p.sendText({ to: '+12395550123', from: '+12395550100', body: 'Hi' });
     expect(create).toHaveBeenCalledWith({
       to: '+12395550123',
+      from: '+12395550100',
       body: 'Hi',
-      messagingServiceSid: 'MG00000000000000000000000000000000',
       statusCallback: 'https://missed-call.naplesaiagency.com/api/sms/status',
     });
   });

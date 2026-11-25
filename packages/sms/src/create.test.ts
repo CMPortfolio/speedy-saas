@@ -15,7 +15,6 @@ describe('smsEnvSchema', () => {
     const env = parse({});
     expect(env.SMS_PROVIDER).toBe('fake');
     expect(env.TWILIO_ACCOUNT_SID).toBeUndefined();
-    expect(env.TWILIO_MESSAGING_SERVICE_SID).toBeUndefined();
   });
 
   it('rejects an unknown provider and a malformed Account SID', () => {
@@ -28,11 +27,19 @@ describe('smsEnvSchema', () => {
       SMS_PROVIDER: 'twilio',
       TWILIO_ACCOUNT_SID: 'AC00000000000000000000000000000000',
       TWILIO_AUTH_TOKEN: 'test-token',
-      TWILIO_MESSAGING_SERVICE_SID: 'MG00000000000000000000000000000000',
       SMS_WEBHOOK_PUBLIC_URL: 'https://missed-call.naplesaiagency.com',
     });
     expect(env.SMS_PROVIDER).toBe('twilio');
     expect(z.url().safeParse(env.SMS_WEBHOOK_PUBLIC_URL).success).toBe(true);
+  });
+});
+
+describe('Messaging Service', () => {
+  it('is chosen per send, so the env has no global TWILIO_MESSAGING_SERVICE_SID any more', () => {
+    expect(Object.keys(smsEnvSchema.server)).not.toContain('TWILIO_MESSAGING_SERVICE_SID');
+    // A leftover value in the environment is ignored, not applied to every text.
+    const env = parse({ TWILIO_MESSAGING_SERVICE_SID: 'MG00000000000000000000000000000000' });
+    expect('TWILIO_MESSAGING_SERVICE_SID' in env).toBe(false);
   });
 });
 

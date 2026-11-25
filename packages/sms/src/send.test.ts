@@ -65,6 +65,21 @@ describe('sendFirstOrFollowup', () => {
   });
 });
 
+describe('sendFirstOrFollowup messaging service', () => {
+  it('passes the business Messaging Service through, only when there is one', async () => {
+    const p = fakeProvider();
+    const store = memoryStore();
+    await sendFirstOrFollowup(p, store, {
+      ...base,
+      isFirstContact: false,
+      messagingServiceSid: 'MG00000000000000000000000000000000',
+    });
+    await sendFirstOrFollowup(p, store, { ...base, isFirstContact: false });
+    expect(p.sent[0]?.messagingServiceSid).toBe('MG00000000000000000000000000000000');
+    expect(p.sent[1]).not.toHaveProperty('messagingServiceSid');
+  });
+});
+
 describe('applyOptOutKeyword', () => {
   it('records STOP and START and reports whether anything changed', async () => {
     const store = memoryStore();

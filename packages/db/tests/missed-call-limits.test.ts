@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { connectTestDb, type TestDb } from './harness';
+import { connectTestDb, type TestDb, randomUsNumber } from './harness';
 
 /** The per-line caps on auto-texts in missed_call.log_missed_call, at their edges. */
 let db: TestDb | null = null;
@@ -9,7 +9,7 @@ let seq = 0;
 
 async function newLine(): Promise<string> {
   const owner = await db!.createUser();
-  const number = `+1239554${String(Math.floor(Math.random() * 9000) + 1000)}`;
+  const number = randomUsNumber();
   const { rows } = await db!.pool.query<{ id: string }>(
     `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template)
      values ($1, $2, '+12395550101', 'Cap Test', 'hi') returning id`,

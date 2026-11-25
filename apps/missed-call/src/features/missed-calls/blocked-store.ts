@@ -1,15 +1,6 @@
-import type { Database } from '@speedy/db/types';
-import { appError } from '@speedy/lib/result';
 import type { OptOutStore } from '@speedy/sms/send';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type Db = SupabaseClient<Database, 'missed_call'>;
-
-export function fail(what: string, cause: unknown): never {
-  throw Object.assign(new Error(`missed_call store: ${what}`), {
-    appError: appError('db_error', what, cause),
-  });
-}
+import { fail, type Db } from './store-db';
 
 /** The send guard: any block on the line, whether Junk, STOP or manual. Read-only. */
 export function anyBlockStore(db: Db, lineId: string): OptOutStore {
@@ -25,7 +16,7 @@ export function anyBlockStore(db: Db, lineId: string): OptOutStore {
       return data !== null;
     },
     async setOptedOut() {
-      fail('use stopList to record STOP', 'optOuts is read-only');
+      throw new Error('optOuts is read-only; use stopList to record STOP or START');
     },
   };
 }
@@ -55,12 +46,8 @@ export function stopListStore(db: Db, lineId: string): OptOutStore {
           );
         if (error) fail('save opt-out', error.message);
       } else {
-        const { error } = await db
-          .from('blocked_numbers')
-          .delete()
-          .eq('line_id', lineId)
-          .eq('number', number)
-          .eq('reason', 'opted_out');
+        // START: lifts the STOP, and puts a junk block back while a Junk call from the number remains.
+        const { error } = await db.rpc('clear_opt_out', { p_line_id: lineId, p_number: number });
         if (error) fail('clear opt-out', error.message);
       }
     },

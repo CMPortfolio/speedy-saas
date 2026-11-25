@@ -3,7 +3,8 @@ import type { E164 } from '@speedy/lib/phone';
 import type { OptOutStore } from '@speedy/sms/send';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { anyBlockStore, fail, stopListStore, type Db } from './blocked-store';
+import { anyBlockStore, stopListStore } from './blocked-store';
+import { fail, type Db } from './store-db';
 
 /** A line as the webhook handling needs it. */
 export interface LineRecord {
@@ -22,8 +23,12 @@ export interface LineRecord {
 
 export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked' | 'foreign' | 'rate_limited';
 
-/** `rate_limited`: saved, but too many from this caller or line lately, so not forwarded. */
-export type ReplyOutcome = 'recorded' | 'rate_limited' | 'duplicate' | 'blocked' | 'no_call';
+/**
+ * `rate_limited`: saved, but too many from this caller or line lately, so not forwarded.
+ * `dropped`: this caller already has 50 stored replies today; nothing is stored.
+ */
+export type ReplyOutcome =
+  'recorded' | 'rate_limited' | 'dropped' | 'duplicate' | 'blocked' | 'no_call';
 
 export interface ReplyResult {
   callId: string | null;
@@ -64,8 +69,12 @@ export interface MissedCallStore {
     body: string,
     providerMessageId: string,
   ): Promise<ReplyResult>;
-  /** True when HELP should be answered: the number has called this line and was not answered in 24 hours. */
-  claimHelpReply(lineId: string, caller: E164, body: string): Promise<boolean>;
+  /**
+   * An id when HELP should be answered (the number has called this line and was not answered in
+   * 24 hours), null otherwise. Give the id back to releaseHelpClaim if the send fails.
+   */
+  claimHelpReply(lineId: string, caller: E164, body: string): Promise<string | null>;
+  releaseHelpClaim(claimId: string): Promise<void>;
   /** The send guard: any block on the line, whether Junk or STOP. */
   optOuts(lineId: string): OptOutStore;
   /** Only who texted STOP (and not START since). Give this one to applyOptOutKeyword. */
@@ -160,7 +169,12 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
         p_body: body,
       });
       if (error) fail('claim help reply', error.message);
-      return data === true;
+      return data;
+    },
+
+    async releaseHelpClaim(claimId) {
+      const { error } = await db.from('messages').delete().eq('id', claimId).eq('kind', 'help');
+      if (error) fail('release help claim', error.message);
     },
 
     optOuts: (lineId) => anyBlockStore(db, lineId),

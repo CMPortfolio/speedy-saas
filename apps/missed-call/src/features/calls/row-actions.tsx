@@ -6,7 +6,7 @@ import { cn } from '@speedy/ui/cn';
 
 import { setCallStatus } from './actions';
 import { smsHref, telHref, type CallRow } from './call-rows';
-import { idleMark } from './mark-action';
+import { idleMark } from './mark-state';
 
 const tap =
   'inline-flex min-h-tap items-center justify-center rounded-brand border border-border bg-surface ' +

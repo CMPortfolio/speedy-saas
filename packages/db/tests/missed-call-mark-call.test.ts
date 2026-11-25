@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { connectTestDb, type TestDb, type TestUser } from './harness';
+import { connectTestDb, type TestDb, type TestUser, randomUsNumber } from './harness';
 
 /** mark_call: who may use it and when it lifts a junk block. */
 let db: TestDb | null = null;
@@ -36,7 +36,7 @@ beforeAll(async () => {
   const line = await db.pool.query<{ id: string }>(
     `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template)
      values ($1, $2, '+12395550101', 'Mark Test', 'hi') returning id`,
-    [owner.id, `+1239552${String(Math.floor(Math.random() * 9000) + 1000)}`],
+    [owner.id, randomUsNumber()],
   );
   lineId = line.rows[0]!.id;
 });

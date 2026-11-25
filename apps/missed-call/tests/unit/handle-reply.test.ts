@@ -227,4 +227,30 @@ describe('handleReply keywords and caps', () => {
     expect(body.endsWith('…')).toBe(true);
     expect(body).not.toContain('\ufffd');
   });
+
+  it('frees the HELP claim when the answer fails to send, so the next HELP is answered', async () => {
+    sms.failNext();
+    await reply(text('HELP'));
+    expect(sms.sent).toHaveLength(0);
+    await reply(text('HELP'));
+    expect(sms.sent).toHaveLength(1);
+  });
+
+  it('START lifts a STOP but keeps the number blocked while a Junk call remains', async () => {
+    mem.calls[0]!.status = 'junk';
+    mem.block(line.id, CALLER, 'opted_out');
+    await reply(text('START'));
+    expect(await mem.store.stopList(line.id).isOptedOut(CALLER)).toBe(false);
+    expect(await mem.store.optOuts(line.id).isOptedOut(CALLER)).toBe(true);
+    mem.calls[0]!.status = 'replied';
+    mem.block(line.id, CALLER, 'opted_out');
+    await reply(text('START'));
+    expect(await mem.store.optOuts(line.id).isOptedOut(CALLER)).toBe(false);
+  });
+
+  it('stores at most 50 replies a day from one caller and 200 a day for the line', async () => {
+    for (let i = 0; i < 60; i += 1) await reply(text(`r${i}`, { providerMessageId: `SMD${i}` }));
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(50);
+    expect(sms.sent).toHaveLength(5);
+  });
 });

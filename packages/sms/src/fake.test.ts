@@ -92,9 +92,17 @@ describe('fakeProvider guard', () => {
     expect(() => fakeProvider()).toThrow(/deployed/);
   });
 
-  it('can be built for a local production run with ALLOW_FAKE_SMS=1', () => {
+  it('can be built for a local production run with ALLOW_FAKE_SMS=1 and a local APP_URL', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('ALLOW_FAKE_SMS', '1');
+    vi.stubEnv('APP_URL', 'http://localhost:3002');
     expect(fakeProvider().name).toBe('fake');
+  });
+
+  it('refuses even with ALLOW_FAKE_SMS=1 when APP_URL is a real domain', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ALLOW_FAKE_SMS', '1');
+    vi.stubEnv('APP_URL', 'https://missed-call.naplesaiagency.com');
+    expect(() => fakeProvider()).toThrow(/APP_URL/);
   });
 });

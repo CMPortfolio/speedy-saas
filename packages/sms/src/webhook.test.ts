@@ -220,11 +220,10 @@ describe('signing URL in production', () => {
   });
 
   it('answers 500 and never calls a handler when production has no public URL', async () => {
+    const p = fakeProvider(); // built before the environment turns production-like
     vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('ALLOW_FAKE_SMS', '1');
     vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
     vi.stubEnv('APP_URL', '');
-    const p = fakeProvider();
     const onInbound = vi.fn();
     const signed = p.inbound(inbound);
     const res = await handleNextWebhook(

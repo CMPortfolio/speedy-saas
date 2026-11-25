@@ -23,6 +23,7 @@ export interface MemoryMessage {
   body: string;
   providerMessageId: string;
   at: Date;
+  kind?: 'text' | 'help';
 }
 
 export function memoryStore(lines: LineRecord[], now: () => Date = () => new Date()) {
@@ -86,7 +87,7 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
       const call = calls.find((c) => c.id === callId);
       if (call) call.textedAt = null;
     },
-    ...blocklistViews(blocked, key, () => (touched += 1)),
+    ...blocklistViews(blocked, calls, key, () => (touched += 1)),
   };
 
   return {
@@ -105,6 +106,7 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
 /** The two views of the block list: the send guard (any block) and the STOP list (opted_out only). */
 function blocklistViews(
   blocked: Map<string, string>,
+  calls: MemoryCall[],
   key: (lineId: string, n: string) => string,
   touch: () => void,
 ): Pick<MissedCallStore, 'optOuts' | 'stopList'> {
@@ -128,9 +130,16 @@ function blocklistViews(
         },
         async setOptedOut(number: E164, optedOut: boolean) {
           touch();
-          if (optedOut) blocked.set(key(lineId, number), 'opted_out');
-          else if (blocked.get(key(lineId, number)) === 'opted_out')
+          if (optedOut) {
+            blocked.set(key(lineId, number), 'opted_out');
+          } else if (blocked.get(key(lineId, number)) === 'opted_out') {
+            // Mirrors clear_opt_out: a Junk call still on the list keeps the number blocked.
             blocked.delete(key(lineId, number));
+            const stillJunk = calls.some(
+              (c) => c.lineId === lineId && c.caller === number && c.status === 'junk',
+            );
+            if (stillJunk) blocked.set(key(lineId, number), 'junk');
+          }
         },
       };
     },
@@ -147,7 +156,9 @@ interface ReplyContext {
 }
 
 /** recordReply and claimHelpReply, mirroring missed_call.record_reply and claim_help_reply. */
-function memoryReplies(ctx: ReplyContext): Pick<MissedCallStore, 'recordReply' | 'claimHelpReply'> {
+function memoryReplies(
+  ctx: ReplyContext,
+): Pick<MissedCallStore, 'recordReply' | 'claimHelpReply' | 'releaseHelpClaim'> {
   const { calls, messages, blocked, key, now } = ctx;
   return {
     async recordReply(lineId, caller, body, providerMessageId) {
@@ -167,10 +178,12 @@ function memoryReplies(ctx: ReplyContext): Pick<MissedCallStore, 'recordReply' |
             (!mine || lineOf(m)?.caller === caller) &&
             m.at.getTime() > now().getTime() - ms,
         ).length;
+      if (within(24 * 3600_000, true) >= 50) return { callId: latest.id, outcome: 'dropped' };
       const limited =
         within(3600_000, true) >= 5 ||
         within(24 * 3600_000, true) >= 20 ||
-        within(3600_000, false) >= 30;
+        within(3600_000, false) >= 30 ||
+        within(24 * 3600_000, false) >= 200;
       messages.push({
         callId: latest.id,
         direction: 'in',
@@ -184,23 +197,30 @@ function memoryReplies(ctx: ReplyContext): Pick<MissedCallStore, 'recordReply' |
     async claimHelpReply(lineId, caller, body) {
       ctx.touch();
       const latest = calls.filter((c) => c.lineId === lineId && c.caller === caller).at(-1);
-      if (!latest) return false;
+      if (!latest) return null;
       const asked = messages.some(
         (m) =>
           m.direction === 'out' &&
-          m.body === body &&
+          m.kind === 'help' &&
           calls.find((c) => c.id === m.callId)?.caller === caller &&
           m.at.getTime() > now().getTime() - 24 * 3600_000,
       );
-      if (asked) return false;
+      if (asked) return null;
+      const id = `help-${messages.length}`;
       messages.push({
         callId: latest.id,
         direction: 'out',
         body,
-        providerMessageId: `help-${messages.length}`,
+        providerMessageId: id,
         at: now(),
+        kind: 'help',
       });
-      return true;
+      return id;
+    },
+    async releaseHelpClaim(claimId) {
+      ctx.touch();
+      const at = messages.findIndex((m) => m.providerMessageId === claimId && m.kind === 'help');
+      if (at >= 0) messages.splice(at, 1);
     },
   };
 }

@@ -3,14 +3,10 @@ import { logger } from '@speedy/lib/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
+import type { MarkState } from './mark-state';
 import { markCall } from './queries';
 
 const log = logger.child({ feature: 'calls' });
-
-export type MarkState =
-  { status: 'idle' } | { status: 'done' } | { status: 'error'; message: string };
-
-export const idleMark: MarkState = { status: 'idle' };
 
 const markSchema = z.object({
   callId: z.uuid(),

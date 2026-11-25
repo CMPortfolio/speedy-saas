@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { connectTestDb, isDenied, type TestDb, type TestUser } from './harness';
+import { connectTestDb, isDenied, type TestDb, type TestUser, randomUsNumber } from './harness';
 
 let db: TestDb | null = null;
 let alice: TestUser;
@@ -21,12 +21,12 @@ beforeAll(async () => {
     const a = await c.query<{ id: string }>(
       `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template)
        values ($1, $2, '+12395550101', 'Alice Plumbing', 'Sorry we missed you.') returning id`,
-      [alice.id, `+1239555${String(Math.floor(Math.random() * 9000) + 1000)}`],
+      [alice.id, randomUsNumber()],
     );
     const b = await c.query<{ id: string }>(
       `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template)
        values ($1, $2, '+12395550102', 'Bob Electric', 'Sorry we missed you.') returning id`,
-      [bob.id, `+1239556${String(Math.floor(Math.random() * 9000) + 1000)}`],
+      [bob.id, randomUsNumber()],
     );
     return { a: a.rows[0]!.id, b: b.rows[0]!.id };
   });

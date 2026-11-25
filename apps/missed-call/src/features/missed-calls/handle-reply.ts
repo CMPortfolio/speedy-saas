@@ -56,11 +56,7 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
     if (await applyOptOutKeyword(store.stopList(line.id), message.from, keyword)) return;
   }
   if (keyword === 'help') {
-    const body = helpReply(line.businessName);
-    // Only to numbers that called this line, once a day; the carrier-level HELP reply is separate.
-    if (await store.claimHelpReply(line.id, message.from, body)) {
-      await provider.sendText({ to: message.from, from: line.providerNumber, body });
-    }
+    await answerHelp(deps, line, message);
     return;
   }
 
@@ -75,6 +71,10 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
     caller: maskUsPhone(message.from),
     outcome: saved.outcome,
   });
+  if (saved.outcome === 'dropped') {
+    log.warn('reply dropped: caller over the daily storage cap', { line: line.id });
+    return;
+  }
   if (saved.outcome === 'rate_limited') {
     log.warn('reply saved but not forwarded: too many lately', { line: line.id });
     return;
@@ -105,4 +105,20 @@ async function forwardLead(
   });
   // The reply is saved either way; the owner still sees it in the list.
   if (!sent.ok) log.error('could not forward the lead', { line: line.id, code: sent.error.code });
+}
+
+/** HELP gets one answer a day, and only to a number that called this line. A failed send frees the claim. */
+async function answerHelp(
+  deps: ReplyDeps,
+  line: LineRecord,
+  message: InboundMessage,
+): Promise<void> {
+  const body = helpReply(line.businessName);
+  const claim = await deps.store.claimHelpReply(line.id, message.from, body);
+  if (!claim) return;
+  const sent = await deps.provider.sendText({ to: message.from, from: line.providerNumber, body });
+  if (!sent.ok) {
+    log.warn('HELP answer not sent', { line: line.id, code: sent.error.code });
+    await deps.store.releaseHelpClaim(claim);
+  }
 }

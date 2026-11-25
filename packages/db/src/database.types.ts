@@ -254,6 +254,7 @@ export type Database = {
           direction: 'in' | 'out';
           body: string;
           provider_message_id: string | null;
+          kind: 'text' | 'help';
           created_at: string;
           updated_at: string;
         };
@@ -263,6 +264,7 @@ export type Database = {
           direction: 'in' | 'out';
           body: string;
           provider_message_id?: string | null;
+          kind?: 'text' | 'help';
           created_at?: string;
           updated_at?: string;
         };
@@ -272,6 +274,7 @@ export type Database = {
           direction?: 'in' | 'out';
           body?: string;
           provider_message_id?: string | null;
+          kind?: 'text' | 'help';
           created_at?: string;
           updated_at?: string;
         };
@@ -344,13 +347,16 @@ export type Database = {
           p_caller_hourly_cap?: number;
           p_caller_daily_cap?: number;
           p_line_hourly_cap?: number;
+          p_line_daily_cap?: number;
+          p_caller_store_cap?: number;
         };
         Returns: { call_id: string | null; outcome: string }[];
       };
       claim_help_reply: {
         Args: { p_line_id: string; p_caller: string; p_body: string };
-        Returns: boolean;
+        Returns: string | null;
       };
+      clear_opt_out: { Args: { p_line_id: string; p_number: string }; Returns: undefined };
       mark_call: {
         Args: { p_call_id: string; p_status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk' };
         Returns: undefined;

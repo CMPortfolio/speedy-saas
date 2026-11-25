@@ -36,6 +36,7 @@ export function createSmsProvider(
       nodeEnv,
       railwayEnvironment: process.env.RAILWAY_ENVIRONMENT,
       allowFakeSms: process.env.ALLOW_FAKE_SMS,
+      appUrl: process.env.APP_URL,
     });
     if (forbidden) throw new SmsConfigError(forbidden);
     return fakeProvider();

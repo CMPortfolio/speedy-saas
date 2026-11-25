@@ -17,6 +17,8 @@ pnpm test:e2e --filter @speedy/missed-call                   # builds, starts, r
 
 `POST /api/voice/incoming` is the only provider webhook so far. Point the Twilio number's "A call comes in" and "Call status changes" at it (see `packages/sms/README.md`). Each request is checked against Twilio's signature first; a bad or missing one gets a 403 and nothing is read or written. A call that rings (direct, or forwarded by the owner's no-answer forwarding) is logged as missed, the caller gets the owner's template (the after-hours one outside the line's quiet hours, America/New_York unless the line says otherwise), then a short spoken greeting. The same caller is texted at most once in 24 hours, blocked numbers never, and a retried webhook never twice. Locally `SMS_PROVIDER=fake` sends nothing.
 
+Calls with a hidden caller ID (anonymous, restricted, unknown) and calls from outside the US are answered with a short spoken message. Hidden caller ID calls are not logged and nothing is texted, because there is no number to text. Calls from non-US numbers are logged but never texted.
+
 ## Layout
 
 ```

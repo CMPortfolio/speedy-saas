@@ -92,5 +92,15 @@ export const TOOLS: readonly Tool[] = [
     status: 'live',
     kind: 'tool',
   },
+  {
+    slug: 'missed-call',
+    name: 'Missed Call Text-Back',
+    pitch: 'Miss a call on a job and the caller gets a text back in seconds.',
+    // Railway service not created yet; subdomain planned. Confirm before setting status to live.
+    url: 'https://missed-call.naplesaiagency.com',
+    tradeTags: ['home-services', 'plumbing', 'hvac', 'electrical', 'cleaning'],
+    status: 'building',
+    kind: 'tool',
+  },
   // new-tool: entries are added above this line. Keep this comment.
 ];

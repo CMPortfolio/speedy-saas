@@ -10,6 +10,7 @@ import {
   hasSupabase,
   nextWeekday,
   reportDelivered,
+  sentProviderIds,
   signIn,
   type TestOwner,
 } from './e2e-helpers';
@@ -118,7 +119,8 @@ test('import 15 customers, run a rain day, see 15 individual sends and the opted
   await expect(page.locator('body')).not.toContainText('555-1');
 
   // The provider reports the texts delivered; the statuses follow.
-  const ids = Array.from({ length: 80 }, (_, i) => `FAKE${String(i + 1).padStart(4, '0')}`);
+  const ids = await sentProviderIds(request, owner);
+  expect(ids).toHaveLength(14);
   for (const status of await Promise.all(ids.map((id) => reportDelivered(request, id)))) {
     expect(status).toBe(204);
   }

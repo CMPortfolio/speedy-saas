@@ -105,6 +105,26 @@ export async function customerTexts(
   return res.status();
 }
 
+/**
+ * The provider ids of the texts this owner's rain days have sent, read with the service role.
+ * The fake provider's ids (FAKE0001...) are per server process, so the test asks for the real ones
+ * instead of guessing a range.
+ */
+export async function sentProviderIds(
+  request: APIRequestContext,
+  owner: TestOwner,
+): Promise<string[]> {
+  const query =
+    'select=provider_message_id,reschedules!inner(owner_id)' +
+    `&reschedules.owner_id=eq.${owner.id}&provider_message_id=not.is.null`;
+  const res = await request.get(`${supabaseUrl}/rest/v1/reschedule_messages?${query}`, {
+    headers: { ...adminHeaders(), 'accept-profile': 'rain_day' },
+  });
+  if (!res.ok()) throw new Error(`could not read the sent ids: ${res.status()}`);
+  const rows = (await res.json()) as { provider_message_id: string }[];
+  return rows.map((r) => r.provider_message_id);
+}
+
 /** The provider reports a text delivered, through the real signed status webhook. */
 export async function reportDelivered(
   request: APIRequestContext,

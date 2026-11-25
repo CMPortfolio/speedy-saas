@@ -11,6 +11,13 @@ export interface SendTextInput {
   to: E164;
   from: E164;
   body: string;
+  /**
+   * The provider's sender group for this send (Twilio: a Messaging Service `MG…`). Under A2P 10DLC
+   * each business has its own service and campaign, so it is chosen per send, never globally.
+   * The text still goes out `from` the number above; the service adds registration, opt-out
+   * handling and logs.
+   */
+  messagingServiceSid?: string;
 }
 
 export interface SendTextOutput {

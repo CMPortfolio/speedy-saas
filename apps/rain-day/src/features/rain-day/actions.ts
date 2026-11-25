@@ -7,11 +7,8 @@ import { logger } from '@speedy/lib/logger';
 import { revalidatePath } from 'next/cache';
 
 import { getSms } from '@/config/sms';
-import {
-  getOwnerSettings,
-  NO_SENDER_MESSAGE,
-  senderNumberOf,
-} from '@/features/settings/owner-cell';
+import { getOwnerSettings, NO_SENDER_MESSAGE } from '@/features/settings/owner-cell';
+import { resolveSender } from '@/features/settings/sender';
 import { todayInNewYork, weekdayOf } from '@/lib/dates';
 import { codeOf } from '@/lib/error-code';
 
@@ -32,8 +29,9 @@ async function prepare(userId: string, request: SendInput): Promise<Prepared> {
   if (!businessName) {
     return { problem: 'Add your business name in Settings first. Customers see it in the text.' };
   }
-  const from = senderNumberOf(await getOwnerSettings(db));
-  if (!from) return { problem: NO_SENDER_MESSAGE };
+  const provider = getSms();
+  const sender = resolveSender(await getOwnerSettings(db), provider.name);
+  if (!sender) return { problem: NO_SENDER_MESSAGE };
   const [customers, optedOutPhones] = await Promise.all([
     listCustomersForDay(db, weekdayOf(request.from)),
     listOptedOutPhones(db),
@@ -46,8 +44,8 @@ async function prepare(userId: string, request: SendInput): Promise<Prepared> {
       customers,
       optedOutPhones,
       businessName,
-      provider: getSms(),
-      from,
+      provider,
+      sender,
       today,
     },
   };

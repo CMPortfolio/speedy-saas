@@ -45,11 +45,13 @@ export function createInboundStore(db: Db): InboundStore {
       const { data, error } = await db
         .schema('rain_day')
         .from('owner_settings')
-        .select('owner_id')
+        .select('owner_id, sender_messaging_service_sid')
         .eq('sender_number', to)
         .maybeSingle();
       if (error) throw error;
-      return data?.owner_id ?? null;
+      return data
+        ? { ownerId: data.owner_id, messagingServiceSid: data.sender_messaging_service_sid }
+        : null;
     },
     forOwner: (ownerId) => createReplyStore(db, ownerId),
   };

@@ -43,8 +43,6 @@ export interface TwilioMessagesClient {
 export interface TwilioProviderOptions {
   accountSid: string;
   authToken: string;
-  /** When set, sends go out through the Messaging Service instead of a fixed `from`. */
-  messagingServiceSid?: string;
   /** Public URL Twilio posts delivery events to (the tool's `/api/sms/status`). */
   statusCallbackUrl?: string;
   /** Replace the SDK client (tests). */
@@ -215,9 +213,12 @@ export function twilioProvider(options: TwilioProviderOptions): SmsProvider {
     name: 'twilio',
 
     async sendText(input: SendTextInput): Promise<Result<SendTextOutput>> {
-      const route = options.messagingServiceSid
-        ? { messagingServiceSid: options.messagingServiceSid }
-        : { from: input.from };
+      // Always from the line's own number. A Messaging Service, when the send names one, rides
+      // along so the message is recorded against that business's registered campaign.
+      const route = {
+        from: input.from,
+        ...(input.messagingServiceSid ? { messagingServiceSid: input.messagingServiceSid } : {}),
+      };
       const callback = options.statusCallbackUrl
         ? { statusCallback: options.statusCallbackUrl }
         : {};
@@ -228,7 +229,11 @@ export function twilioProvider(options: TwilioProviderOptions): SmsProvider {
           ...route,
           ...callback,
         });
-        log.info('text sent', { to: maskUsPhone(input.to), sid: message.sid });
+        log.info('text sent', {
+          to: maskUsPhone(input.to),
+          sid: message.sid,
+          service: input.messagingServiceSid,
+        });
         return ok({ providerMessageId: message.sid });
       } catch (e) {
         const error = sendError(e);

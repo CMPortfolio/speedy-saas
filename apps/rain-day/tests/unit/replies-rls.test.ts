@@ -239,6 +239,46 @@ describe.skipIf(!enabled)('rain_day.owner_settings sender_number', TIMEOUT, () =
   });
 });
 
+describe.skipIf(!enabled)('rain_day.owner_settings sender_messaging_service_sid', TIMEOUT, () => {
+  const setService = (owner: TestUser, sid: string) =>
+    db!.asService((c) =>
+      c.query(
+        'insert into rain_day.owner_settings (owner_id, sender_messaging_service_sid) values ($1, $2) on conflict (owner_id) do update set sender_messaging_service_sid = $2',
+        [owner.id, sid],
+      ),
+    );
+  const freshSid = () => `MG${crypto.randomUUID().replaceAll('-', '')}`;
+
+  it('is set by the service role, read by its owner, and never writable by an owner', async () => {
+    if (!db) return;
+    const owner = await db.createUser();
+    const sid = freshSid();
+    await setService(owner, sid);
+    const own = await db.as(owner, (c) =>
+      c.query('select sender_messaging_service_sid as sid from rain_day.owner_settings'),
+    );
+    expect(own.rows).toEqual([{ sid }]);
+    await expect(
+      db.as(owner, (c) =>
+        c.query(
+          'update rain_day.owner_settings set sender_messaging_service_sid = $1 where owner_id = $2',
+          [freshSid(), owner.id],
+        ),
+      ),
+    ).rejects.toSatisfy(isDenied);
+  });
+
+  it('is an MG... SID, and two owners can never share a service', async () => {
+    if (!db) return;
+    const [one, two] = [await db.createUser(), await db.createUser()];
+    const sid = freshSid();
+    await setService(one, sid);
+    await expect(setService(two, sid)).rejects.toMatchObject({ code: '23505' });
+    await expect(setService(two, 'MGnothex')).rejects.toMatchObject({ code: '23514' });
+    await expect(setService(two, `AC${sid.slice(2)}`)).rejects.toMatchObject({ code: '23514' });
+  });
+});
+
 describe.skipIf(!enabled)('rain_day.record_reply', TIMEOUT, () => {
   it('matches only the owner who was texted: another owner with the same customer gets nothing', async () => {
     if (!db) return;

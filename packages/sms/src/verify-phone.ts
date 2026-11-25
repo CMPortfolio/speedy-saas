@@ -73,6 +73,8 @@ export interface StartInput {
   subject: string;
   phone: E164;
   from: E164;
+  /** The business's own Messaging Service, when it has one (see SendTextInput). */
+  messagingServiceSid?: string | undefined;
   /** Wording of the text. Default: "Your verification code is 123456. It expires in 10 minutes." */
   message?: (code: string) => string;
 }
@@ -117,6 +119,7 @@ export async function startPhoneVerification(
     to: input.phone,
     from: input.from,
     body: (input.message ?? defaultMessage)(code),
+    ...(input.messagingServiceSid ? { messagingServiceSid: input.messagingServiceSid } : {}),
   });
   if (!sent.ok) {
     await store.clearChallenge(input.subject);

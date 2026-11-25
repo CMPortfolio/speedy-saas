@@ -344,6 +344,7 @@ export type Database = {
           owner_cell: string | null;
           owner_cell_verified_at: string | null;
           sender_number: string | null;
+          sender_messaging_service_sid: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -352,6 +353,7 @@ export type Database = {
           owner_cell?: string | null;
           owner_cell_verified_at?: string | null;
           sender_number?: string | null;
+          sender_messaging_service_sid?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -360,6 +362,7 @@ export type Database = {
           owner_cell?: string | null;
           owner_cell_verified_at?: string | null;
           sender_number?: string | null;
+          sender_messaging_service_sid?: string | null;
           created_at?: string;
           updated_at?: string;
         };

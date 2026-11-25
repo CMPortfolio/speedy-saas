@@ -75,7 +75,7 @@ async function context(owner: Owner, provider = fakeProvider(), db: Client = own
     optedOutPhones: await listOptedOutPhones(owner.client),
     businessName: 'Green Gulf Lawn',
     provider,
-    from: '+12395550100',
+    sender: { from: '+12395550100' },
     today: '2026-11-24',
   };
   return { ctx, provider };

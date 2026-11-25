@@ -1,34 +1,10 @@
-/**
- * Open Graph cards rendered with next/og (Satori). Inline styles only, flexbox only: Satori
- * has no Tailwind and no CSS grid. Colours mirror packages/config/brand.js.
- */
-export const OG_SIZE = { width: 1200, height: 630 } as const;
+import { OG_COLORS, OgBrandMark } from '@speedy/ui/og';
 
-const BRAND = '#0E7490';
-const INK = '#1C1917';
-const PAPER = '#FAF9F6';
+export { BrandCard, OG_SIZE } from '@speedy/ui/og';
 
-export function BrandCard({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: 72,
-        background: BRAND,
-        color: '#FFFFFF',
-        fontFamily: 'sans-serif',
-      }}
-    >
-      <div style={{ fontSize: 72, fontWeight: 700, lineHeight: 1.1 }}>{title}</div>
-      <div style={{ fontSize: 34, lineHeight: 1.3, opacity: 0.95 }}>{subtitle}</div>
-      <div style={{ fontSize: 28, opacity: 0.8 }}>Naples AI · naplesaiagency.com</div>
-    </div>
-  );
-}
+/** Share-page preview cards (Satori: inline styles, flexbox only). Colours are the brand tokens. */
+const INK = OG_COLORS.ink;
+const PAPER = OG_COLORS.paper;
 
 export interface PairCardProps {
   /** Data URLs (or absolute URLs) for the photos; a missing side shows a plain panel. */
@@ -45,7 +21,7 @@ function Panel({ src, label }: { src: string | null; label: string }) {
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        background: '#E5E1DA',
+        background: OG_COLORS.line,
         overflow: 'hidden',
       }}
     >
@@ -66,7 +42,7 @@ function Panel({ src, label }: { src: string | null; label: string }) {
           left: 24,
           padding: '10px 20px',
           borderRadius: 12,
-          background: 'rgba(28,25,23,0.78)',
+          background: 'rgba(11,34,64,0.82)',
           color: '#FFFFFF',
           fontSize: 32,
           fontWeight: 700,
@@ -101,13 +77,13 @@ export function PairCard({ before, after, businessName }: PairCardProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: 100,
+          height: 110,
           padding: '0 40px',
           fontSize: 32,
         }}
       >
         <div style={{ fontWeight: 700 }}>{businessName}</div>
-        <div style={{ color: BRAND, fontSize: 26 }}>Before and after photos</div>
+        <OgBrandMark size={44} color={OG_COLORS.brandDeep} />
       </div>
     </div>
   );

@@ -35,7 +35,7 @@ certificate issued. HTTPS must work before you give Twilio the webhook URLs.
    `20261125005215_rain_day_init.sql`, `20261125010100_rain_day_customers.sql`,
    `20261125300000_rain_day_reschedules.sql`, `20261125300050_rain_day_send_hardening.sql`,
    `20261125300100_rain_day_replies.sql`, `20261125300150_rain_day_help_throttle.sql`,
-   `20261125300200_rain_day_per_owner_numbers.sql`.
+   `20261125300200_rain_day_per_owner_numbers.sql`, `20261125300250_rain_day_help_per_owner.sql`.
    `20261125300050` moves opt-outs out of `customers.opted_out` into `rain_day.opt_outs` and drops
    that column; it copies existing opt-outs first.
 2. Settings, API, **Exposed schemas**: add `rain_day` (next to `public`). Without it every call from
@@ -96,6 +96,10 @@ Delivery receipts arrive on `/api/sms/status`. The app passes it as the `statusC
 message, so nothing to paste for it. If you also set a delivery status callback on a Messaging
 Service, give it the same URL. Rain Day does not use voice: leave the voice webhooks alone.
 
+One Twilio account serves every owner (no subaccounts), so there is **one `TWILIO_AUTH_TOKEN`** and
+it verifies every webhook. If owners are ever moved into Twilio subaccounts, each subaccount has its
+own auth token and the app would have to verify webhooks per account; that is not built.
+
 ### One texting number and one Messaging Service per owner
 
 Every owner texts from **their own number**, and customer replies come back to that number. The app
@@ -103,17 +107,25 @@ finds the owner by the number that was texted, so two owners can never share one
 (`rain_day.owner_settings.sender_number` is unique) and a reply is only ever filed under the owner
 who was texted.
 
-Per owner, an admin does this (there is no number buying or setup in the app):
+Per owner, an admin follows the runbook below. **This is a deviation from the original plan** (one
+texting number for the whole tool): it needs the engineer's sign-off, because it costs a number and
+a Messaging Service per owner and each owner needs their own approved A2P brand and campaign.
 
-1. Get the owner's brand and campaign approved (A2P, below).
-2. Buy a US number for the owner in the Twilio console.
-3. Create **one Messaging Service per owner**, add the number to its sender pool, and attach the
-   owner's approved campaign to that service. "A Messaging Service can only be linked with one
-   Campaign at a time", and campaign approval registers the numbers in that service's pool
-   (https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/direct-standard-onboarding). Wait for
-   the campaign to show as verified before sending; the association is asynchronous.
-4. Point the number's "A message comes in" webhook at `/api/sms/inbound` (table above).
-5. Give the number to the owner (SQL editor, service role; owners cannot write this column):
+#### Runbook: assign an owner's texting number
+
+1. **Registration.** Get the owner's brand and campaign approved (A2P, below). Do not go further
+   until the campaign is approved.
+2. **Buy the number** (paid; the engineer does it). In the Twilio console buy a US local number for
+   the owner (239 or their area). The app never buys numbers.
+3. **Create the owner's Messaging Service.** One per owner, named for the business. Add the number
+   to its sender pool and attach the owner's approved campaign to the service. "A Messaging Service
+   can only be linked with one Campaign at a time", and approving the campaign registers the numbers
+   in that service's pool
+   (https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/direct-standard-onboarding). The
+   association is asynchronous: poll the campaign until it shows as verified before sending.
+4. **Point the number at the app.** Messaging, "A message comes in", `HTTP POST`:
+   `https://rain-day.naplesaiagency.com/api/sms/inbound`.
+5. **Give the number to the owner** (SQL editor, service role; owners cannot write these columns):
 
    ```sql
    insert into rain_day.owner_settings (owner_id, sender_number)
@@ -121,8 +133,14 @@ Per owner, an admin does this (there is no number buying or setup in the app):
    on conflict (owner_id) do update set sender_number = excluded.sender_number;
    ```
 
-   Until this row has a number, the owner's Rain day page shows "Your texting number isn't set up
-   yet. We'll let you know when it's ready." and Send is off.
+   (The Messaging Service SID goes in the same row once the follow-up below lands.)
+
+6. **Check Send enables.** Sign in as the owner (or look at their page): Settings shows "Customers get
+   your texts from (239) ...", and the Rain day page no longer says "Your texting number isn't set up
+   yet", so Send is available. The owner's cell confirmation code is texted from this number.
+
+Until the row has a number, the owner's Rain day page shows "Your texting number isn't set up yet.
+We'll let you know when it's ready." and Send is off.
 
 > **TODO (waiting on the packages/sms change):** Twilio's guidance is to send with **both** the
 > owner's `MessagingServiceSid` and `From` = the owner's number, which pins the sender and keeps the
@@ -144,7 +162,7 @@ Per owner, an admin does this (there is no number buying or setup in the app):
 - **Account spend alert.** Console, Billing: set a usage alert and a low spend trigger (for example
   alert at $25 and $50 a month) to an email you read.
 - **HELP auto-reply.** Twilio Advanced Opt-Out answers HELP by itself, and so does the app (once a
-  day, only to a number on that owner's customer list). Turn off one of them so people do not get
+  day per owner's number, only to a number on that owner's customer list). Turn off one of them so people do not get
   two: either switch off the HELP auto-reply in the Messaging Service's Advanced Opt-Out settings, or
   keep it and remove the HELP branch in `src/features/replies/handle-inbound.ts`. STOP and START are
   handled by Twilio and by the app and are safe to run in both.
@@ -184,12 +202,13 @@ the pages it comes from:
 
 ## 4. What owners and the engineer should know
 
-- **A STOP blocks the number for every owner.** When a customer texts STOP to an owner's number,
-  the owner who was texted gets an opt-out for that customer, and the send step also refuses to text
-  that number for **any other owner**. That means one owner's customer can stop another owner's
-  texts to the same person, and the privacy policy should say so (a cross-tenant signal). Scoping
-  STOP to the owner whose number received it is possible, but only do it if carrier rules allow;
-  the default is to keep the global block.
+- **STOP applies to the owner whose number was texted.** Each owner has their own number, and a
+  carrier STOP is to one sender number, so a customer's STOP to Owner A's number blocks A's texts to
+  them only. Owner B's texts to the same person are not skipped, and B never sees A's opt-out
+  (`rain_day.opt_outs` is read per owner). START to a number clears only that owner's entry. The
+  opt-out is stored by number, so deleting and re-importing the customer does not clear it, and it is
+  recorded even when the person is not on the owner's list yet. There is no cross-owner signal, so
+  the privacy policy needs no sentence about one business affecting another.
 - **Replies from a deleted customer do not match.** If an owner deletes a customer, that person's
   later replies are not filed or forwarded, because the customer is the link to the original text.
   Their opt-outs survive deletion and re-import.

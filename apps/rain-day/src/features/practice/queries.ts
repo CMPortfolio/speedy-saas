@@ -2,7 +2,15 @@ import type { Db } from '@speedy/db/core';
 import type { Tables } from '@speedy/db/types';
 
 export type PracticeReschedule = Tables<{ schema: 'rain_day' }, 'practice_reschedules'>;
-export type PracticeMessage = Tables<{ schema: 'rain_day' }, 'practice_messages'>;
+/**
+ * A practice bubble with its customer's name and number, read from the customer's own record (the
+ * bubble stores only the customer's id). RLS limits both to the owner.
+ */
+export type PracticeMessage = Tables<{ schema: 'rain_day' }, 'practice_messages'> & {
+  customers: { name: string; phone: string } | null;
+};
+
+const WITH_CUSTOMER = '*, customers(name, phone)';
 
 /** The owner's practice rain days, newest first. RLS limits rows to the owner. */
 export async function listPracticeReschedules(db: Db, limit = 20): Promise<PracticeReschedule[]> {
@@ -23,7 +31,7 @@ export async function listPracticeMessages(
   const { data, error } = await db
     .schema('rain_day')
     .from('practice_messages')
-    .select('*')
+    .select(WITH_CUSTOMER)
     .eq('practice_reschedule_id', rescheduleId)
     .order('seq');
   if (error) throw error;
@@ -35,7 +43,7 @@ export async function listPracticeReplies(db: Db, limit = 20): Promise<PracticeM
   const { data, error } = await db
     .schema('rain_day')
     .from('practice_messages')
-    .select('*')
+    .select(WITH_CUSTOMER)
     .eq('direction', 'in')
     .eq('kind', 'text')
     .order('seq', { ascending: false })

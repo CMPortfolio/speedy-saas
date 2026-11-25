@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   clearPractice,
+  expirePractice,
   replyPractice,
   sendPractice,
   type PracticeContext,
@@ -14,9 +15,10 @@ import { listPracticeMessages, listPracticeOptedOutIds } from '@/features/practi
 import type { SendInput } from '@/features/rain-day/schema';
 
 /**
- * Practice mode against the local Supabase stack: it writes only practice rows, is refused for an
- * owner with a real number, is rate-limited and capped, and never touches a real table. Needs
- * DB_TESTS=1 and the three Supabase env vars.
+ * Practice mode against the local Supabase stack: it writes only practice rows (customer ids, no
+ * copy of a name or number), is refused for an owner with a texting number, is rate-limited and
+ * capped, rejects another owner's ids, and never touches a real table. Needs DB_TESTS=1 and the
+ * three Supabase env vars.
  */
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -77,17 +79,36 @@ const sendInput = (
   customers,
   realOptedOutPhones: new Set(),
   practiceOptedOutIds: new Set(),
+  contactedIds: new Set(),
+  businessName: 'Green Gulf Lawn',
   today: '2026-11-24',
   ...extra,
 });
 
-async function ctxFor(owner: Owner, providerName = 'twilio'): Promise<PracticeContext> {
+async function ctxFor(owner: Owner): Promise<PracticeContext> {
   const { data } = await owner.client
     .schema('rain_day')
     .from('owner_settings')
     .select('*')
     .maybeSingle();
-  return { service, ownerId: owner.id, settings: data, providerName };
+  return { service, ownerId: owner.id, settings: data };
+}
+
+async function setNumber(ownerId: string, withService: boolean) {
+  const { error } = await service
+    .schema('rain_day')
+    .from('owner_settings')
+    .upsert(
+      {
+        owner_id: ownerId,
+        sender_number: `+12397${String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')}`,
+        ...(withService
+          ? { sender_messaging_service_sid: `MG${crypto.randomUUID().replaceAll('-', '')}` }
+          : {}),
+      },
+      { onConflict: 'owner_id' },
+    );
+  if (error) throw error;
 }
 
 async function realCounts(ownerId: string) {
@@ -125,12 +146,13 @@ describe.skipIf(!enabled)('practice send', { timeout: 60_000 }, () => {
   it('sends 15 customers to the practice phone, skips the opted-out, and writes no real row', async () => {
     const { owner, customers } = await ownerWith(15);
     const ctx = await ctxFor(owner);
+    const named = (n: string) => customers.find((c) => c.name === n)!;
     const result = await sendPractice(
       ctx,
       sendInput(customers, {
         realOptedOutPhones: new Set([
-          customers.find((c) => c.name === 'Customer3 Test')!.phone,
-          customers.find((c) => c.name === 'Customer11 Test')!.phone,
+          named('Customer3 Test').phone,
+          named('Customer11 Test').phone,
         ]),
       }),
       request(customers),
@@ -142,14 +164,15 @@ describe.skipIf(!enabled)('practice send', { timeout: 60_000 }, () => {
     expect(rows.every((r) => r.direction === 'out' && r.kind === 'text')).toBe(true);
     expect(rows.filter((r) => r.status === 'sent')).toHaveLength(13);
     const skipped = rows.filter((r) => r.status === 'skipped');
-    expect(skipped.map((r) => r.customer_name).sort()).toEqual([
+    expect(skipped.map((r) => r.customers?.name).sort()).toEqual([
       'Customer11 Test',
       'Customer3 Test',
     ]);
     expect(skipped.every((r) => r.error_code === 'opted_out')).toBe(true);
     // One bubble per customer, each with their own name and nobody's number.
     expect(new Set(rows.map((r) => r.customer_id)).size).toBe(15);
-    expect(rows.find((r) => r.customer_name === 'Customer0 Test')!.body).toMatch(/^Hi Customer0, /);
+    const zero = rows.find((r) => r.customers?.name === 'Customer0 Test')!;
+    expect(zero.body).toMatch(/^Hi Customer0, /);
     for (const r of rows) for (const c of customers) expect(r.body).not.toContain(c.phone.slice(2));
     expect(await realCounts(owner.id)).toEqual({
       reschedules: 0,
@@ -159,75 +182,104 @@ describe.skipIf(!enabled)('practice send', { timeout: 60_000 }, () => {
     });
   });
 
-  it('a double tap makes one practice rain day', async () => {
-    const { owner, customers } = await ownerWith(3);
-    const ctx = await ctxFor(owner);
-    const key = crypto.randomUUID();
-    const first = await sendPractice(ctx, sendInput(customers), request(customers, key));
-    const second = await sendPractice(ctx, sendInput(customers), request(customers, key));
-    expect(first).toMatchObject({ ok: true, alreadySent: false });
-    expect(second).toMatchObject({ ok: true, alreadySent: true });
-    const { count } = await owner.client
+  it('stores the customer by id only: no name or number column on a practice row', async () => {
+    const { owner, customers } = await ownerWith(2);
+    const sent = await sendPractice(await ctxFor(owner), sendInput(customers), request(customers));
+    if (!sent.ok) throw new Error(sent.message);
+    const { data } = await service
       .schema('rain_day')
       .from('practice_messages')
-      .select('id', { count: 'exact', head: true });
-    expect(count).toBe(3);
+      .select('*')
+      .eq('owner_id', owner.id);
+    for (const row of data!) {
+      expect(Object.keys(row)).not.toContain('customer_name');
+      expect(Object.keys(row)).not.toContain('phone');
+      expect(Object.keys(row)).toContain('customer_id');
+    }
   });
 
-  it('is refused once the owner has a real number and Messaging Service, and writes nothing', async () => {
+  it('shows the opt-out line to a customer who never had a text, and not to one who did', async () => {
     const { owner, customers } = await ownerWith(2);
-    await service
-      .schema('rain_day')
-      .from('owner_settings')
-      .upsert(
-        {
-          owner_id: owner.id,
-          sender_number: `+12397${String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')}`,
-          sender_messaging_service_sid: `MG${crypto.randomUUID().replaceAll('-', '')}`,
-        },
-        { onConflict: 'owner_id' },
-      );
-    const ctx = await ctxFor(owner);
-    const refused = await sendPractice(ctx, sendInput(customers), request(customers));
-    expect(refused).toEqual({ ok: false, message: PRACTICE_REFUSED });
-    const reply = await replyPractice(ctx, {
-      rescheduleId: crypto.randomUUID(),
-      customer: customers[0]!,
-      body: 'hi',
-      businessName: 'Green Gulf Lawn',
-    });
-    expect(reply).toEqual({ ok: false, message: PRACTICE_REFUSED });
-    const { count } = await owner.client
-      .schema('rain_day')
-      .from('practice_reschedules')
-      .select('id', { count: 'exact', head: true });
-    expect(count).toBe(0);
-  });
-
-  it('a number without a Messaging Service is still practice with the real provider, but not with the fake one', async () => {
-    const { owner, customers } = await ownerWith(1);
-    await service
-      .schema('rain_day')
-      .from('owner_settings')
-      .upsert(
-        {
-          owner_id: owner.id,
-          sender_number: `+12397${String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')}`,
-        },
-        { onConflict: 'owner_id' },
-      );
-    expect(
-      (await sendPractice(await ctxFor(owner, 'twilio'), sendInput(customers), request(customers)))
-        .ok,
-    ).toBe(true);
-    expect(
-      await sendPractice(await ctxFor(owner, 'fake'), sendInput(customers), request(customers)),
-    ).toEqual({
-      ok: false,
-      message: PRACTICE_REFUSED,
-    });
+    const [first, second] = [customers[0]!, customers[1]!];
+    const sent = await sendPractice(
+      await ctxFor(owner),
+      sendInput(customers, { contactedIds: new Set([second.id]) }),
+      request(customers),
+    );
+    if (!sent.ok) throw new Error(sent.message);
+    const rows = await listPracticeMessages(owner.client, sent.rescheduleId);
+    expect(rows.find((r) => r.customer_id === first.id)!.body).toContain('Reply STOP to opt out');
+    expect(rows.find((r) => r.customer_id === second.id)!.body).not.toContain('Reply STOP');
   });
 });
+
+describe.skipIf(!enabled)(
+  'practice send: idempotency, mode and ownership',
+  { timeout: 60_000 },
+  () => {
+    it('a double tap makes one practice rain day', async () => {
+      const { owner, customers } = await ownerWith(3);
+      const ctx = await ctxFor(owner);
+      const key = crypto.randomUUID();
+      const first = await sendPractice(ctx, sendInput(customers), request(customers, key));
+      const second = await sendPractice(ctx, sendInput(customers), request(customers, key));
+      expect(first).toMatchObject({ ok: true, alreadySent: false });
+      expect(second).toMatchObject({ ok: true, alreadySent: true });
+      const { count } = await owner.client
+        .schema('rain_day')
+        .from('practice_messages')
+        .select('id', { count: 'exact', head: true });
+      expect(count).toBe(3);
+    });
+
+    it('is refused once the owner has any texting number, even before the Messaging Service, and writes nothing', async () => {
+      for (const withService of [true, false]) {
+        const { owner, customers } = await ownerWith(2);
+        await setNumber(owner.id, withService);
+        const ctx = await ctxFor(owner);
+        expect(await sendPractice(ctx, sendInput(customers), request(customers))).toEqual({
+          ok: false,
+          message: PRACTICE_REFUSED,
+        });
+        expect(
+          await replyPractice(ctx, {
+            rescheduleId: crypto.randomUUID(),
+            customerId: customers[0]!.id,
+            body: 'hi',
+            businessName: 'Green Gulf Lawn',
+          }),
+        ).toEqual({ ok: false, message: PRACTICE_REFUSED });
+        const { count } = await owner.client
+          .schema('rain_day')
+          .from('practice_reschedules')
+          .select('id', { count: 'exact', head: true });
+        expect(count).toBe(0);
+      }
+    });
+
+    it('only the owner’s own customers can be reached: another owner’s ids are dropped', async () => {
+      const mine = await ownerWith(2);
+      const theirs = await ownerWith(2);
+      const ctx = await ctxFor(mine.owner);
+      // The browser sends the other owner's customer ids along with its own.
+      const mixed = [...mine.customers, ...theirs.customers];
+      const sent = await sendPractice(ctx, sendInput(mine.customers), request(mixed));
+      if (!sent.ok) throw new Error(sent.message);
+      const rows = await listPracticeMessages(mine.owner.client, sent.rescheduleId);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => mine.customers.some((c) => c.id === r.customer_id))).toBe(true);
+      const { count } = await service
+        .schema('rain_day')
+        .from('practice_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', theirs.owner.id);
+      expect(count).toBe(0);
+      // And a request naming only the other owner's customers sends nothing.
+      const none = await sendPractice(ctx, sendInput(mine.customers), request(theirs.customers));
+      expect(none).toEqual({ ok: false, message: 'Tick at least one customer.' });
+    });
+  },
+);
 
 describe.skipIf(!enabled)('practice limits', { timeout: 60_000 }, () => {
   it('stops at 60 practice actions an hour per owner, and the limit is per owner', async () => {
@@ -251,26 +303,35 @@ describe.skipIf(!enabled)('practice limits', { timeout: 60_000 }, () => {
     ).toBe(true);
   }, 120_000);
 
-  it('holds at most 2,000 bubbles; clearing makes room again', async () => {
+  it('holds at most 1,000 bubbles; clearing makes room again', async () => {
     const { owner, customers } = await ownerWith(500);
     const ctx = await ctxFor(owner);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       expect((await sendPractice(ctx, sendInput(customers), request(customers))).ok).toBe(true);
     }
-    const full = await sendPractice(
-      ctx,
-      sendInput(customers.slice(0, 1)),
-      request(customers.slice(0, 1)),
-    );
+    const one = customers.slice(0, 1);
+    const full = await sendPractice(ctx, sendInput(one), request(one));
     expect(full.ok).toBe(false);
     expect(!full.ok && full.message).toMatch(/full/i);
-    const cleared = await clearPractice(ctx);
-    expect(cleared).toMatchObject({ ok: true, removed: 2000 });
-    expect(
-      (await sendPractice(ctx, sendInput(customers.slice(0, 1)), request(customers.slice(0, 1))))
-        .ok,
-    ).toBe(true);
+    expect(await clearPractice(ctx)).toMatchObject({ ok: true, removed: 1000 });
+    expect((await sendPractice(ctx, sendInput(one), request(one))).ok).toBe(true);
   }, 180_000);
+
+  it('practice rows older than a week expire, newer ones stay', async () => {
+    const { owner, customers } = await ownerWith(2);
+    const ctx = await ctxFor(owner);
+    const old = await sendPractice(ctx, sendInput(customers), request(customers));
+    const fresh = await sendPractice(ctx, sendInput(customers), request(customers));
+    if (!old.ok || !fresh.ok) throw new Error('send failed');
+    await service
+      .schema('rain_day')
+      .from('practice_reschedules')
+      .update({ created_at: new Date(Date.now() - 8 * 86_400_000).toISOString() })
+      .eq('id', old.rescheduleId);
+    await expirePractice(ctx);
+    expect(await listPracticeMessages(owner.client, old.rescheduleId)).toEqual([]);
+    expect(await listPracticeMessages(owner.client, fresh.rescheduleId)).toHaveLength(2);
+  });
 });
 
 describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
@@ -282,7 +343,7 @@ describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
     const reply = (index: number, body: string) =>
       replyPractice(ctx, {
         rescheduleId: sent.rescheduleId,
-        customer: customers[index]!,
+        customerId: customers[index]!.id,
         body,
         businessName: 'Green Gulf Lawn',
       });
@@ -290,7 +351,7 @@ describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
     return { owner, customers, ctx, sent, reply, bubbles };
   }
 
-  it('a reply shows as the customer’s bubble and as a forward to the owner’s cell, and touches no real row', async () => {
+  it('a reply shows as the customer’s bubble and a forward to the owner’s cell, and touches no real row', async () => {
     const { owner, customers, reply, bubbles } = await started();
     expect(await reply(0, 'Can you do Thursday?')).toMatchObject({ ok: true, forwarded: true });
     const rows = (await bubbles()).filter((r) => r.customer_id === customers[0]!.id);
@@ -299,9 +360,8 @@ describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
       ['in', 'text', 'received'],
       ['forward', 'text', 'sent'],
     ]);
-    expect(rows.find((r) => r.direction === 'forward')!.body).toContain(
-      'Customer0 Test replied: "Can you do Thursday?"',
-    );
+    // The forward holds only what the customer said; the name and number are added when drawn.
+    expect(rows.find((r) => r.direction === 'forward')!.body).toBe('Can you do Thursday?');
     expect(await realCounts(owner.id)).toEqual({
       reschedules: 0,
       messages: 0,
@@ -310,7 +370,7 @@ describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
     });
   });
 
-  it('STOP skips that customer on the next practice send; START brings them back; the real STOP list is untouched', async () => {
+  it('STOP skips that customer on the next practice send; START brings them back; real opt-outs are untouched', async () => {
     const { owner, customers, ctx, reply } = await started();
     expect(await reply(1, 'STOP')).toMatchObject({ ok: true, forwarded: false });
     const stopped = await listPracticeOptedOutIds(owner.client);
@@ -333,12 +393,29 @@ describe.skipIf(!enabled)('practice replies', { timeout: 60_000 }, () => {
     expect(
       await replyPractice(ctx, {
         rescheduleId: next.rescheduleId,
-        customer: customers[1]!,
+        customerId: customers[1]!.id,
         body: 'START',
         businessName: 'Green Gulf Lawn',
       }),
     ).toMatchObject({ ok: true });
     expect((await listPracticeOptedOutIds(owner.client)).size).toBe(0);
+    expect(await realCounts(owner.id)).toMatchObject({ optOuts: 0 });
+  });
+
+  it('a practice STOP or START never writes or clears a REAL opt-out', async () => {
+    const { owner, customers, reply } = await started();
+    await service
+      .schema('rain_day')
+      .from('opt_outs')
+      .insert({ owner_id: owner.id, phone: customers[2]!.phone });
+    await reply(2, 'START');
+    await reply(0, 'STOP');
+    const real = await service
+      .schema('rain_day')
+      .from('opt_outs')
+      .select('phone')
+      .eq('owner_id', owner.id);
+    expect(real.data).toEqual([{ phone: customers[2]!.phone }]);
   });
 });
 
@@ -351,7 +428,7 @@ describe.skipIf(!enabled)('practice HELP, clear and isolation', { timeout: 60_00
     const reply = (index: number, body: string) =>
       replyPractice(ctx, {
         rescheduleId: sent.rescheduleId,
-        customer: customers[index]!,
+        customerId: customers[index]!.id,
         body,
         businessName: 'Green Gulf Lawn',
       });
@@ -359,8 +436,8 @@ describe.skipIf(!enabled)('practice HELP, clear and isolation', { timeout: 60_00
     return { owner, customers, ctx, sent, reply, bubbles };
   }
 
-  it('HELP is answered once with the business name, a plain Yes is forwarded, and no customer outside the rain day can reply', async () => {
-    const { customers, reply, bubbles, ctx, sent } = await started();
+  it('HELP is answered once with the business name, and a plain Yes is forwarded', async () => {
+    const { reply, bubbles } = await started();
     await reply(2, 'HELP');
     await reply(2, 'help');
     await reply(0, 'Yes');
@@ -370,19 +447,30 @@ describe.skipIf(!enabled)('practice HELP, clear and isolation', { timeout: 60_00
     expect(helps[0]!.body).toBe(
       'Green Gulf Lawn: reply STOP to opt out. Msg & data rates may apply.',
     );
-    expect(rows.filter((r) => r.direction === 'forward').map((r) => r.body)).toEqual([
-      expect.stringContaining('"Yes"'),
-    ]);
+    expect(rows.filter((r) => r.direction === 'forward').map((r) => r.body)).toEqual(['Yes']);
+  });
 
-    const stranger = await ownerWith(1);
-    const refused = await replyPractice(ctx, {
-      rescheduleId: sent.rescheduleId,
-      customer: stranger.customers[0]!,
-      body: 'hi',
-      businessName: 'x',
-    });
-    expect(refused.ok).toBe(false);
-    expect(customers).toHaveLength(3);
+  it('another owner’s customer or practice rain day is rejected (IDOR)', async () => {
+    const mine = await started();
+    const theirs = await started();
+    const attempt = (customerId: string, rescheduleId: string) =>
+      replyPractice(mine.ctx, { rescheduleId, customerId, body: 'hi', businessName: 'x' });
+    // Their customer in my practice rain day, my customer in their practice rain day, and both theirs.
+    for (const [customerId, rescheduleId] of [
+      [theirs.customers[0]!.id, mine.sent.rescheduleId],
+      [mine.customers[0]!.id, theirs.sent.rescheduleId],
+      [theirs.customers[0]!.id, theirs.sent.rescheduleId],
+    ] as const) {
+      expect((await attempt(customerId, rescheduleId)).ok).toBe(false);
+    }
+    // Nothing was written for either owner.
+    const { count } = await service
+      .schema('rain_day')
+      .from('practice_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('direction', 'in')
+      .in('owner_id', [mine.owner.id, theirs.owner.id]);
+    expect(count).toBe(0);
   });
 
   it('clear practice removes only practice rows: a real rain day stays', async () => {
@@ -400,10 +488,18 @@ describe.skipIf(!enabled)('practice HELP, clear and isolation', { timeout: 60_00
       .schema('rain_day')
       .from('opt_outs')
       .insert({ owner_id: owner.id, phone: customers[2]!.phone });
-    const cleared = await clearPractice(ctx);
-    expect(cleared).toMatchObject({ ok: true });
+    expect(await clearPractice(ctx)).toMatchObject({ ok: true });
     expect(await bubbles()).toEqual([]);
     expect(await realCounts(owner.id)).toMatchObject({ reschedules: 1, optOuts: 1 });
+  });
+
+  it('deleting a customer deletes their practice bubbles too', async () => {
+    const { owner, customers, bubbles } = await started();
+    await service.schema('rain_day').from('customers').delete().eq('id', customers[0]!.id);
+    const rows = await bubbles();
+    expect(rows.some((r) => r.customer_id === customers[0]!.id)).toBe(false);
+    expect(rows).toHaveLength(2);
+    expect(owner.id).toBeTruthy();
   });
 
   it('owner A cannot see owner B’s practice phone', async () => {

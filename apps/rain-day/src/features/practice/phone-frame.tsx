@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@speedy/ui/cn';
 
+import { PracticeBadge } from './practice-badge';
 import { displayStatus, type PracticeStatus } from './status';
 import type { Bubble } from './phone-types';
 
@@ -26,7 +27,9 @@ export function PhoneFrame({
 }) {
   return (
     <section aria-label={label} data-testid={testId} className="flex flex-col gap-2">
-      <h3 className="text-sm font-semibold text-ink">{label}</h3>
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        {label} <PracticeBadge />
+      </h3>
       <div className="flex min-h-48 flex-col gap-2 rounded-brand border-2 border-border bg-background p-3">
         {children}
       </div>

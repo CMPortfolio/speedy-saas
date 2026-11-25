@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { planPracticeReply, type PracticeReplyInput } from '@/features/practice/reply';
 
 const base: PracticeReplyInput = {
-  customerName: 'Maria Lopez',
-  customerPhone: '+12395550123',
   body: 'Can you do Thursday?',
   businessName: 'Green Gulf Lawn',
   optedOut: false,
@@ -24,10 +22,11 @@ describe('planPracticeReply', () => {
         status: 'received',
         error_code: null,
       },
+      // Only what the customer said: no name and no number is stored with the bubble.
       {
         direction: 'forward',
         kind: 'text',
-        body: 'Maria Lopez replied: "Can you do Thursday?" ((239) 555-0123)',
+        body: 'Can you do Thursday?',
         status: 'sent',
         error_code: null,
       },

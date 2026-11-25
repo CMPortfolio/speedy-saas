@@ -8,7 +8,7 @@ import { ButtonLink } from '@/components/button-link';
 import { skipReason } from '@/features/rain-day/plan';
 import { env } from '@/config/env';
 import { getOwnerSettings } from '@/features/settings/owner-cell';
-import { isPracticeOwner } from '@/features/practice/gate';
+import { sendMode } from '@/features/practice/gate';
 import { listPracticeOptedOutIds } from '@/features/practice/queries';
 import {
   listContactedCustomerIds,
@@ -40,7 +40,8 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
   ]);
 
   // Decided here on the server from the owner's own settings, never from the URL.
-  const practice = isPracticeOwner(settings, env.SMS_PROVIDER);
+  const mode = sendMode(settings, env.SMS_PROVIDER);
+  const practice = mode === 'practice';
   // A STOP typed on the practice phone skips that customer in practice, and only there.
   const practiceStopped = practice ? await listPracticeOptedOutIds(supabase) : new Set<string>();
 
@@ -80,7 +81,7 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
         }))}
         initialTemplate={defaultTemplate(profile?.business_name ?? '')}
         businessName={profile?.business_name?.trim() ?? ''}
-        senderReady={!practice}
+        mode={mode}
       />
     </section>
   );

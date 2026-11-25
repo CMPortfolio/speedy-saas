@@ -7,8 +7,11 @@ import { logger } from '@speedy/lib/logger';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { env } from '@/config/env';
-import { listCustomersForDay, listOptedOutPhones } from '@/features/rain-day/queries';
+import {
+  listContactedCustomerIds,
+  listCustomersForDay,
+  listOptedOutPhones,
+} from '@/features/rain-day/queries';
 import { sendInputSchema } from '@/features/rain-day/schema';
 import { getOwnerSettings } from '@/features/settings/owner-cell';
 import { todayInNewYork, weekdayOf } from '@/lib/dates';
@@ -36,7 +39,6 @@ async function context(userId: string) {
     service: createServiceSupabase(),
     ownerId: userId,
     settings: await getOwnerSettings(db),
-    providerName: env.SMS_PROVIDER,
   };
   return { db, ctx };
 }
@@ -58,17 +60,17 @@ export async function sendPracticeRainDay(
   if (request.to < today) return { ok: false, message: 'Pick a new day that is today or later.' };
   try {
     const { db, ctx } = await context(user.id);
-    if (!(await getProfile(db, user.id))?.business_name?.trim()) {
-      return { ok: false, message: NEEDS_BUSINESS };
-    }
-    const [customers, realOptedOutPhones, practiceOptedOutIds] = await Promise.all([
+    const businessName = (await getProfile(db, user.id))?.business_name?.trim();
+    if (!businessName) return { ok: false, message: NEEDS_BUSINESS };
+    const [customers, realOptedOutPhones, practiceOptedOutIds, contactedIds] = await Promise.all([
       listCustomersForDay(db, weekdayOf(request.from)),
       listOptedOutPhones(db),
       listPracticeOptedOutIds(db),
+      listContactedCustomerIds(db),
     ]);
     const result = await sendPractice(
       ctx,
-      { customers, realOptedOutPhones, practiceOptedOutIds, today },
+      { customers, realOptedOutPhones, practiceOptedOutIds, contactedIds, businessName, today },
       request,
     );
     revalidatePath('/rain-day/practice');
@@ -96,19 +98,10 @@ export async function sendPracticeReply(
   }
   try {
     const { db, ctx } = await context(user.id);
-    // Read through RLS: only one of the owner's own customers can be found.
-    const { data: customer, error } = await db
-      .schema('rain_day')
-      .from('customers')
-      .select('id, name, phone')
-      .eq('id', parsed.data.customerId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!customer) return { ok: false, message: 'That customer is no longer here.' };
     const businessName = (await getProfile(db, user.id))?.business_name?.trim() || 'Your business';
     const result = await replyPractice(ctx, {
       rescheduleId: parsed.data.rescheduleId,
-      customer,
+      customerId: parsed.data.customerId,
       body: parsed.data.body,
       businessName,
     });

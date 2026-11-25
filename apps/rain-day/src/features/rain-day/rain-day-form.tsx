@@ -11,7 +11,9 @@ import { addDays, describeNewDay } from '@/lib/dates';
 import { weekdayName } from '@/lib/weekday';
 
 import { ConfirmSendModal, texts } from './confirm-send-modal';
+import type { SendMode } from '@/features/practice/gate';
 import { PracticeBanner } from '@/features/practice/practice-banner';
+import { NO_SENDER_MESSAGE } from '@/features/settings/owner-cell';
 
 import { DatePickers } from './date-pickers';
 import { CustomerRow, type FormCustomer } from './customer-row';
@@ -27,8 +29,8 @@ export interface RainDayFormProps {
   customers: FormCustomer[];
   initialTemplate: string;
   businessName: string;
-  /** False until an admin has given this owner a texting number: Send stays off. */
-  senderReady: boolean;
+  /** practice: no number yet. ready: send for real. blocked: a number but no Messaging Service. */
+  mode: SendMode;
 }
 
 export function RainDayForm({
@@ -39,7 +41,7 @@ export function RainDayForm({
   customers,
   initialTemplate,
   businessName,
-  senderReady,
+  mode,
 }: RainDayFormProps) {
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
@@ -56,9 +58,9 @@ export function RainDayForm({
   const skipped = customers.filter((c) => c.skip).length;
   const dateError =
     from === to ? 'Pick a different day.' : to < today ? 'Pick today or later.' : undefined;
-  // No real texting number yet: practice mode. The server decides this again for every send.
-  const practice = !senderReady;
-  const canSend = sendable.length > 0 && template.trim() !== '' && !dateError;
+  // The server decides the mode again for every send; this only picks the screen.
+  const practice = mode === 'practice';
+  const canSend = mode !== 'blocked' && sendable.length > 0 && template.trim() !== '' && !dateError;
 
   function go(nextFrom: string, nextTo: string) {
     startNavigation(() => router.replace(`/rain-day?from=${nextFrom}&to=${nextTo}`));
@@ -131,6 +133,11 @@ export function RainDayForm({
             </ul>
           </section>
           <MessageField value={template} onChange={setTemplate} />
+          {mode === 'blocked' && (
+            <p role="status" className="text-sm text-ink">
+              {NO_SENDER_MESSAGE}
+            </p>
+          )}
           {error && (
             <p role="alert" className="text-sm text-danger">
               {error}

@@ -35,7 +35,9 @@ export function PracticeRepliesSection({ replies }: { replies: PracticeMessage[]
               className="flex flex-col gap-1 rounded-brand border border-dashed border-border bg-surface px-4 py-3"
             >
               <div className="flex items-start justify-between gap-3">
-                <span className="text-base font-medium text-ink">{r.customer_name}</span>
+                <span className="text-base font-medium text-ink">
+                  {r.customers?.name ?? 'A customer'}
+                </span>
                 <span className="text-sm text-muted">{when.format(new Date(r.created_at))}</span>
               </div>
               <p className="text-base text-ink">{r.body}</p>

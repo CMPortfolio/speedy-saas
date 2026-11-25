@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import { createServerSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
+import { expirePractice } from '@/features/practice/core';
 import { ClearPracticeButton } from '@/features/practice/clear-practice-button';
 import { ownerIsInPractice } from '@/features/practice/mode';
 import { PracticeBanner } from '@/features/practice/practice-banner';
@@ -18,6 +19,7 @@ import {
   listPracticeReschedules,
   type PracticeMessage,
 } from '@/features/practice/queries';
+import { forwardText } from '@/features/replies/forward';
 import { nowMs } from '@/lib/clock';
 
 export const metadata: Metadata = { title: 'Practice phone' };
@@ -30,11 +32,18 @@ const day = new Intl.DateTimeFormat('en-US', {
 });
 const dayOf = (iso: string) => day.format(new Date(`${iso}T00:00:00Z`));
 
+/**
+ * A bubble to draw. A forward is stored as only what the customer said; the name and number go in
+ * front of it here, from the customer's own record.
+ */
 const toBubble = (m: PracticeMessage): Bubble => ({
   id: m.id,
   direction: m.direction as Bubble['direction'],
   kind: m.kind,
-  body: m.body,
+  body:
+    m.direction === 'forward' && m.customers
+      ? forwardText(m.customers.name, m.customers.phone, m.body)
+      : m.body,
   status: m.status,
   created_at: m.created_at,
 });
@@ -44,16 +53,15 @@ function threadsOf(messages: PracticeMessage[]): Thread[] {
   const threads = new Map<string, Thread>();
   for (const m of messages) {
     if (m.direction === 'forward') continue;
-    const key = m.customer_id ?? m.customer_name;
-    const thread = threads.get(key) ?? {
-      customerId: m.customer_id ?? '',
-      name: m.customer_name,
+    const thread = threads.get(m.customer_id) ?? {
+      customerId: m.customer_id,
+      name: m.customers?.name ?? 'A customer',
       bubbles: [],
     };
     thread.bubbles.push(toBubble(m));
-    threads.set(key, thread);
+    threads.set(m.customer_id, thread);
   }
-  return [...threads.values()].filter((t) => t.customerId !== '');
+  return [...threads.values()];
 }
 
 export default async function PracticePage({
@@ -61,9 +69,11 @@ export default async function PracticePage({
 }: {
   searchParams: Promise<{ day?: string }>;
 }) {
-  await requireUser('/rain-day/practice');
+  const user = await requireUser('/rain-day/practice');
   // Practice is only for an owner whose texting number is not set up: anyone else goes back.
   if (!(await ownerIsInPractice())) redirect('/rain-day');
+  // Practice texts older than a week are deleted when the page loads.
+  await expirePractice({ service: createServiceSupabase(), ownerId: user.id });
   const params = await searchParams;
   const db = await createServerSupabase();
   const days = await listPracticeReschedules(db);

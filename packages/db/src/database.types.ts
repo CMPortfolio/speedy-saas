@@ -764,8 +764,7 @@ export type Database = {
         Row: {
           body: string;
           created_at: string;
-          customer_id: string | null;
-          customer_name: string;
+          customer_id: string;
           direction: string;
           error_code: string | null;
           id: string;
@@ -780,8 +779,7 @@ export type Database = {
         Insert: {
           body: string;
           created_at?: string;
-          customer_id?: string | null;
-          customer_name: string;
+          customer_id: string;
           direction: string;
           error_code?: string | null;
           id?: string;
@@ -795,8 +793,7 @@ export type Database = {
         Update: {
           body?: string;
           created_at?: string;
-          customer_id?: string | null;
-          customer_name?: string;
+          customer_id?: string;
           direction?: string;
           error_code?: string | null;
           id?: string;
@@ -1062,10 +1059,19 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_practice_out: {
+        Args: {
+          p_body: string;
+          p_customer_id: string;
+          p_max_messages: number;
+          p_owner_id: string;
+          p_reschedule_id: string;
+        };
+        Returns: string;
+      };
       add_practice_rows: {
         Args: {
           p_customer_id: string;
-          p_customer_name: string;
           p_mark_replied: boolean;
           p_max_messages: number;
           p_owner_id: string;
@@ -1103,6 +1109,7 @@ export type Database = {
           reschedule_id: string;
         }[];
       };
+      expire_practice: { Args: { p_owner_id: string }; Returns: number };
       previously_texted: { Args: { p_reschedule_id: string }; Returns: string[] };
       record_reply: {
         Args: {

@@ -161,3 +161,51 @@ test('once a real number is set, the practice screens are gone and practice is r
     await deleteOwner(request, real.id);
   }
 });
+
+test('a number without its Messaging Service is neither practice nor ready: Send stays off', async ({
+  page,
+  request,
+}) => {
+  const half = await createOwner(request);
+  try {
+    await assignSenderNumber(request, half, { withService: false });
+    await signIn(page, half, '/rain-day');
+    await page.goto('/rain-day');
+    await expect(page.getByTestId('practice-banner')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Practice phone' })).toHaveCount(0);
+    await page.goto('/rain-day/practice');
+    await expect(page).toHaveURL(/\/rain-day$/);
+  } finally {
+    await deleteOwner(request, half.id);
+  }
+});
+
+test('the real texting endpoints still refuse unsigned posts, and nothing in practice needs Twilio', async ({
+  request,
+}) => {
+  // This server has no Twilio credentials (see playwright.config.ts), so the practice test above
+  // only passes if practice never constructs a Twilio client. The real webhooks answer a forged
+  // request with an error and never with success, and the dev text routes do not exist.
+  for (const path of ['/api/sms/inbound', '/api/sms/status']) {
+    const res = await request.post(path, {
+      headers: { 'content-type': 'application/json' },
+      data: {
+        kind: 'inbound',
+        from: '+12395550123',
+        to: '+12395550100',
+        body: 'STOP',
+        providerMessageId: 'x',
+      },
+    });
+    expect([403, 500]).toContain(res.status());
+    const forged = await request.post(path, {
+      headers: {
+        'content-type': 'application/json',
+        'x-speedy-fake-signature': 'fake-signature-ok',
+      },
+      data: { kind: 'delivery', providerMessageId: 'x', status: 'delivered' },
+    });
+    expect([403, 500]).toContain(forged.status());
+  }
+  expect((await request.get('/api/dev/sms/sent')).status()).toBe(404);
+});

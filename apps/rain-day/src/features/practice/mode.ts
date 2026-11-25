@@ -1,6 +1,5 @@
 import { createServerSupabase } from '@speedy/auth/server';
 
-import { env } from '@/config/env';
 import { getOwnerSettings } from '@/features/settings/owner-cell';
 
 import { isPracticeOwner } from './gate';
@@ -11,5 +10,5 @@ import { isPracticeOwner } from './gate';
  */
 export async function ownerIsInPractice(): Promise<boolean> {
   const settings = await getOwnerSettings(await createServerSupabase());
-  return isPracticeOwner(settings, env.SMS_PROVIDER);
+  return isPracticeOwner(settings);
 }

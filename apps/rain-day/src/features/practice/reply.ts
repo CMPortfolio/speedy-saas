@@ -1,10 +1,6 @@
 import { classifyKeyword, helpReply } from '@speedy/sms/keywords';
 
-import { forwardText } from '@/features/replies/forward';
-
 export interface PracticeReplyInput {
-  customerName: string;
-  customerPhone: string;
   /** What the owner typed while playing the customer. */
   body: string;
   businessName: string;
@@ -44,7 +40,7 @@ const row = (
  * What a reply typed on the practice phone does, with the same rules as production: STOP opts the
  * customer out; START, YES and UNSTOP opt them back in only when they are opted out (otherwise a
  * plain "Yes" is an ordinary reply); HELP gets the carrier line once a day; anything else is a
- * reply, forwarded to the owner's cell with the customer's name and number. Pure: it decides what
+ * reply, forwarded to the owner's cell (shown with the customer's name and number). Pure: it decides what
  * the phone shows and the server stores it.
  */
 export function planPracticeReply(input: PracticeReplyInput): PracticeReplyPlan {
@@ -81,7 +77,9 @@ export function planPracticeReply(input: PracticeReplyInput): PracticeReplyPlan 
   return {
     rows: [
       incoming,
-      row('forward', 'text', forwardText(input.customerName, input.customerPhone, said), 'sent'),
+      // Only what the customer said. The name and number go in front of it when the phone is drawn,
+      // from the customer's own record, so no copy of them is kept here.
+      row('forward', 'text', said, 'sent'),
     ],
     markReplied: true,
     optOut: null,

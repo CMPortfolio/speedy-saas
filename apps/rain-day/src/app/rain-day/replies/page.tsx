@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { createServerSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
 import { listReplies } from '@/features/replies/queries';
-import { env } from '@/config/env';
+import { expirePractice } from '@/features/practice/core';
 import { isPracticeOwner } from '@/features/practice/gate';
 import { PracticeRepliesSection } from '@/features/practice/practice-replies-section';
 import { listPracticeReplies } from '@/features/practice/queries';
@@ -33,14 +33,15 @@ const when = new Intl.DateTimeFormat('en-US', {
 });
 
 export default async function RepliesPage() {
-  await requireUser('/rain-day/replies');
+  const user = await requireUser('/rain-day/replies');
   const supabase = await createServerSupabase();
   const [replies, settings] = await Promise.all([
     listReplies(supabase),
     getOwnerSettings(supabase),
   ]);
   // Practice replies show only while the owner is in practice mode, decided from their settings.
-  const practice = isPracticeOwner(settings, env.SMS_PROVIDER);
+  const practice = isPracticeOwner(settings);
+  if (practice) await expirePractice({ service: createServiceSupabase(), ownerId: user.id });
   const practiceReplies = practice ? await listPracticeReplies(supabase) : [];
 
   return (

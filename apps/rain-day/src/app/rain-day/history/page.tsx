@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { createServerSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
-import { env } from '@/config/env';
+import { expirePractice } from '@/features/practice/core';
 import { isPracticeOwner } from '@/features/practice/gate';
 import { PracticeHistorySection } from '@/features/practice/practice-history-section';
 import { listPracticeDaySummaries } from '@/features/practice/queries';
@@ -48,11 +48,12 @@ function summary(counts: Record<string, number>, stale: boolean): string {
 }
 
 export default async function HistoryPage() {
-  await requireUser('/rain-day/history');
+  const user = await requireUser('/rain-day/history');
   const supabase = await createServerSupabase();
   const items = await listRescheduleSummaries(supabase);
   // Practice rain days show only while the owner is in practice mode, decided from their settings.
-  const practice = isPracticeOwner(await getOwnerSettings(supabase), env.SMS_PROVIDER);
+  const practice = isPracticeOwner(await getOwnerSettings(supabase));
+  if (practice) await expirePractice({ service: createServiceSupabase(), ownerId: user.id });
   const practiceDays = practice ? await listPracticeDaySummaries(supabase) : [];
 
   return (

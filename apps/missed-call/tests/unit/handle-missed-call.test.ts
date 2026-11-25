@@ -224,3 +224,75 @@ describe('handleMissedCall templates and edge cases', () => {
     expect(mem.calls).toHaveLength(25);
   });
 });
+
+describe('handleMissedCall failures and late sends', () => {
+  it('still answers with the greeting when releasing the claim fails', async () => {
+    sms.failNext();
+    const broken = { ...mem.store, releaseTextClaim: () => Promise.reject(new Error('db down')) };
+    const twiml = await handleMissedCall(
+      { provider: sms, store: broken, now: () => clock },
+      event(),
+    );
+    expect(twiml).toContain('<Say>');
+  });
+
+  it('records a text that finishes after the timeout, using the deferred task', async () => {
+    let finish: (v: Awaited<ReturnType<typeof sms.sendText>>) => void = () => undefined;
+    const slow = {
+      ...sms,
+      sendText: () => new Promise<Awaited<ReturnType<typeof sms.sendText>>>((r) => (finish = r)),
+    };
+    const deferred: Promise<unknown>[] = [];
+    const twiml = await handleMissedCall(
+      {
+        provider: slow,
+        store: mem.store,
+        now: () => clock,
+        sendTimeoutMs: 20,
+        defer: (task) => deferred.push(task),
+      },
+      event(),
+    );
+    expect(twiml).toContain('<Say>');
+    expect(mem.messages).toHaveLength(0);
+    finish({ ok: true, value: { providerMessageId: 'LATE1' } });
+    await Promise.all(deferred);
+    expect(mem.messages).toHaveLength(1);
+    expect(mem.messages[0]?.providerMessageId).toBe('LATE1');
+    expect(mem.calls[0]?.status).toBe('texted');
+  });
+
+  it('releases the claim when a text that timed out turns out to have failed', async () => {
+    let finish: (v: Awaited<ReturnType<typeof sms.sendText>>) => void = () => undefined;
+    const slow = {
+      ...sms,
+      sendText: () => new Promise<Awaited<ReturnType<typeof sms.sendText>>>((r) => (finish = r)),
+    };
+    const deferred: Promise<unknown>[] = [];
+    await handleMissedCall(
+      {
+        provider: slow,
+        store: mem.store,
+        now: () => clock,
+        sendTimeoutMs: 20,
+        defer: (task) => deferred.push(task),
+      },
+      event(),
+    );
+    finish({ ok: false, error: { code: 'provider_failed', message: 'x' } });
+    await Promise.all(deferred);
+    expect(mem.calls[0]?.textedAt).toBeNull();
+  });
+
+  it('stores the text exactly as sent, opt-out footer included', async () => {
+    await run(event());
+    expect(mem.messages[0]?.body).toBe(sms.sent[0]?.body);
+    expect(mem.messages[0]?.body).toContain('Reply STOP to opt out');
+  });
+
+  it('gives a retried webhook the same greeting as the first one', async () => {
+    const first = await run(event());
+    const retry = await run(event());
+    expect(retry).toBe(first);
+  });
+});

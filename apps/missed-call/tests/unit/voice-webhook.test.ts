@@ -89,7 +89,7 @@ describe('voice webhook signature', () => {
     expect(mem.calls).toHaveLength(1);
   });
 
-  it('answers 204 for a status callback it does not act on', async () => {
+  it('answers TwiML, not an empty 204, for a status callback it does not act on', async () => {
     const mem = memoryStore([line]);
     const sms = fakeProvider();
     const event: CallStatusEvent = {
@@ -105,7 +105,25 @@ describe('voice webhook signature', () => {
       provider: sms,
       getStore: () => mem.store,
     });
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<Hangup/>');
     expect(mem.touched).toBe(0);
   });
+
+  it.each(['anonymous', '+266696687', '', 'restricted'])(
+    'answers a hangup with TwiML, never an empty body, for From=%j',
+    async (from) => {
+      process.env.APP_URL = 'https://missed-call.naplesaiagency.com';
+      const mem = memoryStore([line]);
+      const p = { ...params, From: from };
+      const res = await handleVoiceWebhook(
+        twilioRequest(twilioSignature(TOKEN, URL_, p), new URLSearchParams(p).toString()),
+        { provider: twilio(), getStore: () => mem.store },
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/xml');
+      expect(await res.text()).toContain('<Response>');
+      expect(mem.touched).toBe(0);
+    },
+  );
 });

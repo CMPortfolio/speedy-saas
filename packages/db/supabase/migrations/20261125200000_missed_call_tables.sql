@@ -63,7 +63,7 @@ create table missed_call.calls (
   updated_at timestamptz not null default now()
 );
 
-comment on table missed_call.calls is 'status missed = logged, no text sent (cooldown, blocked or send failed).';
+comment on table missed_call.calls is 'Every missed call. status missed = logged but no auto-text went out (cooldown, blocked, outside the US, over the cap or the send failed); texted = the text went out.';
 
 create index calls_line_received_idx on missed_call.calls (line_id, received_at desc);
 create index calls_line_caller_idx on missed_call.calls (line_id, caller_number, received_at desc);

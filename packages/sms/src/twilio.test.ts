@@ -198,6 +198,15 @@ describe('Twilio webhook parsing', () => {
     expect(!r2.ok && r2.error.code).toBe('ignored_event');
   });
 
+  it.each(['anonymous', 'restricted', 'unknown', '%2B266696687', '%2B1239555'])(
+    'ignores a hidden or malformed caller id (From=%s) instead of inventing a number',
+    (from) => {
+      const body = fixtures.callNoAnswer.replace('From=%2B12395550123', `From=${from}`);
+      const r = parseTwilioWebhook(body);
+      expect(!r.ok && r.error.code).toBe('ignored_event');
+    },
+  );
+
   it('rejects a body that is not a Twilio webhook', () => {
     const r = parseTwilioWebhook('hello=world');
     expect(!r.ok && r.error.code).toBe('invalid_webhook');

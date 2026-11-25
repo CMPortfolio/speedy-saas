@@ -27,6 +27,8 @@ export interface TestOwner {
   tokenHash: string;
   /** The owner's own texting number once an admin has set it (see assignSenderNumber). */
   senderNumber?: string;
+  /** The owner's own Messaging Service, set together with the number. */
+  messagingServiceSid?: string;
 }
 
 /** A new confirmed user and a one-time sign-in token for them. */
@@ -52,8 +54,9 @@ export async function deleteOwner(request: APIRequestContext, id: string): Promi
 }
 
 /**
- * Stands in for the admin who gives an owner their own texting number: writes
- * rain_day.owner_settings.sender_number with the service role (owners cannot write it).
+ * Stands in for the admin who gives an owner their own texting number and Messaging Service:
+ * writes rain_day.owner_settings.sender_number and sender_messaging_service_sid with the service
+ * role (owners cannot write them).
  * The number is random per call so runs never collide on the unique index.
  */
 export async function assignSenderNumber(
@@ -61,16 +64,19 @@ export async function assignSenderNumber(
   owner: TestOwner,
 ): Promise<string> {
   const number = `+123974${String(Math.floor(Math.random() * 100_000)).padStart(5, '0')}`;
+  // Like the number, unique per run (one service per owner).
+  const sid = `MG${crypto.randomUUID().replaceAll('-', '')}`;
   const res = await request.post(`${supabaseUrl}/rest/v1/owner_settings?on_conflict=owner_id`, {
     headers: {
       ...adminHeaders(),
       'content-profile': 'rain_day',
       prefer: 'resolution=merge-duplicates,return=minimal',
     },
-    data: { owner_id: owner.id, sender_number: number },
+    data: { owner_id: owner.id, sender_number: number, sender_messaging_service_sid: sid },
   });
   if (!res.ok()) throw new Error(`could not set the sender number: ${res.status()}`);
   owner.senderNumber = number;
+  owner.messagingServiceSid = sid;
   return number;
 }
 

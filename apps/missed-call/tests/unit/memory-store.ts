@@ -30,7 +30,7 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
       touched += 1;
       return lines.find((l) => l.providerNumber === number) ?? null;
     },
-    async logMissedCall(lineId, caller, sid) {
+    async logMissedCall(lineId, caller, sid, allowText) {
       touched += 1;
       const dup = calls.find((c) => c.sid === sid);
       if (dup) return { callId: dup.id, outcome: 'duplicate', firstContact: false };
@@ -45,10 +45,21 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
       calls.push(call);
       const base = { callId: call.id, firstContact: false };
       if (blocked.has(key(lineId, caller))) return { ...base, outcome: 'blocked' as LogOutcome };
+      if (!allowText) return { ...base, outcome: 'foreign' as LogOutcome };
       const others = calls.filter((c) => c.lineId === lineId && c.caller === caller && c !== call);
       const dayAgo = now().getTime() - 24 * 3600 * 1000;
       if (others.some((c) => c.textedAt && c.textedAt.getTime() > dayAgo))
         return { ...base, outcome: 'cooldown' };
+      const since = (ms: number) =>
+        calls.filter(
+          (c) =>
+            c !== call &&
+            c.lineId === lineId &&
+            c.textedAt &&
+            c.textedAt.getTime() > now().getTime() - ms,
+        ).length;
+      if (since(3600_000) >= 20 || since(24 * 3600_000) >= 100)
+        return { ...base, outcome: 'rate_limited' as LogOutcome };
       call.textedAt = now();
       return {
         callId: call.id,

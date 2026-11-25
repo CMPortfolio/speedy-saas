@@ -17,7 +17,7 @@ export interface LineRecord {
   timezone: string;
 }
 
-export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked';
+export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked' | 'foreign' | 'rate_limited';
 
 export interface LogResult {
   callId: string;
@@ -34,7 +34,12 @@ export interface LogResult {
 export interface MissedCallStore {
   findLineByNumber(number: E164): Promise<LineRecord | null>;
   /** Log the call and decide, atomically, whether to text. See missed_call.log_missed_call. */
-  logMissedCall(lineId: string, caller: E164, callSid: string): Promise<LogResult>;
+  logMissedCall(
+    lineId: string,
+    caller: E164,
+    callSid: string,
+    allowText: boolean,
+  ): Promise<LogResult>;
   recordTextSent(callId: string, body: string, providerMessageId: string): Promise<void>;
   /** The send failed: free the cooldown so the caller's next call can still be texted. */
   releaseTextClaim(callId: string): Promise<void>;
@@ -81,11 +86,12 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       };
     },
 
-    async logMissedCall(lineId, caller, callSid) {
+    async logMissedCall(lineId, caller, callSid, allowText) {
       const { data, error } = await db.rpc('log_missed_call', {
         p_line_id: lineId,
         p_caller: caller,
         p_call_sid: callSid,
+        p_allow_text: allowText,
       });
       const row = data?.[0];
       if (error || !row) fail('log missed call', error?.message);

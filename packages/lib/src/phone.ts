@@ -3,6 +3,8 @@
  * Rules follow the North American Numbering Plan: area code and exchange start with 2–9,
  * area codes never have 9 as the middle digit, and the exchange is never N11.
  */
+import { US_AREA_CODES } from './us-area-codes';
+
 export type E164 = `+1${string}`;
 
 const DIGITS = /\D+/g;
@@ -88,4 +90,14 @@ export function maskUsPhone(input: string): string {
 /** First name from a full name, for "Hi Maria" greetings. */
 export function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? '';
+}
+
+/**
+ * True only for numbers whose area code belongs to a US state or DC. Use this, not
+ * `normalizeUsPhone`, before anything that costs money per message: the NANP also covers Canada
+ * and Caribbean countries that are billed internationally and used for SMS-pumping fraud.
+ */
+export function isUsDomesticPhone(input: string): boolean {
+  const e164 = normalizeUsPhone(input);
+  return e164 !== null && US_AREA_CODES.has(e164.slice(2, 5));
 }

@@ -1,5 +1,5 @@
 import type { SmsProvider } from '@speedy/sms/provider';
-import { fromNextRequest, handleWebhook, toResponse } from '@speedy/sms/webhook';
+import { handleNextWebhook } from '@speedy/sms/webhook';
 
 import { handleMissedCall } from './handle-missed-call';
 import type { MissedCallStore } from './store';
@@ -17,12 +17,8 @@ export interface VoiceWebhookDeps {
 }
 
 /** POST /api/voice/incoming: Twilio's "a call comes in" and "call status changes" webhook. */
-export async function handleVoiceWebhook(
-  request: Request,
-  deps: VoiceWebhookDeps,
-): Promise<Response> {
-  const req = await fromNextRequest(request);
-  const res = await handleWebhook(deps.provider, req, {
+export function handleVoiceWebhook(request: Request, deps: VoiceWebhookDeps): Promise<Response> {
+  return handleNextWebhook(deps.provider, request, {
     onCallStatus: (event) =>
       handleMissedCall(
         {
@@ -34,5 +30,4 @@ export async function handleVoiceWebhook(
         event,
       ),
   });
-  return toResponse(res);
 }

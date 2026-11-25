@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FAKE_SIGNATURE, FAKE_SIGNATURE_HEADER, fakeProvider } from './fake';
 import type { CallStatusEvent, DeliveryEvent, InboundMessage } from './provider';
-import { fromNextRequest, handleWebhook, toResponse } from './webhook';
+import {
+  fromNextRequest,
+  handleNextWebhook,
+  handleWebhook,
+  toResponse,
+  WebhookConfigError,
+} from './webhook';
 
 const inbound: InboundMessage = {
   kind: 'inbound',
@@ -186,5 +192,69 @@ describe('end to end with a web Request', () => {
     expect(forged.status).toBe(403);
     expect(await forged.text()).toBe('Forbidden');
     expect(seen).toHaveLength(1);
+  });
+});
+
+describe('signing URL in production', () => {
+  const forwarded = {
+    'x-forwarded-proto': 'https',
+    'x-forwarded-host': 'attacker.example',
+  };
+  const post = (headers: Record<string, string> = {}) =>
+    new Request('http://10.0.0.5:8080/api/voice/incoming', {
+      method: 'POST',
+      headers,
+      body: 'x=1',
+    });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    ['NODE_ENV=production', { NODE_ENV: 'production' }],
+    ['RAILWAY_ENVIRONMENT set', { NODE_ENV: 'development', RAILWAY_ENVIRONMENT: 'production' }],
+  ])('refuses to build the URL from X-Forwarded-Host with no public URL: %s', async (_n, env) => {
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+    vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
+    vi.stubEnv('APP_URL', '');
+    await expect(fromNextRequest(post(forwarded))).rejects.toBeInstanceOf(WebhookConfigError);
+  });
+
+  it('answers 500 and never calls a handler when production has no public URL', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ALLOW_FAKE_SMS', '1');
+    vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
+    vi.stubEnv('APP_URL', '');
+    const p = fakeProvider();
+    const onInbound = vi.fn();
+    const signed = p.inbound(inbound);
+    const res = await handleNextWebhook(
+      p,
+      new Request('http://10.0.0.5:8080/api/sms/inbound', {
+        method: 'POST',
+        headers: { ...signed.headers, ...forwarded } as Record<string, string>,
+        body: signed.rawBody,
+      }),
+      { onInbound },
+    );
+    expect(res.status).toBe(500);
+    expect(onInbound).not.toHaveBeenCalled();
+  });
+
+  it('uses APP_URL in production and ignores X-Forwarded-Host', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
+    vi.stubEnv('APP_URL', 'https://missed-call.naplesaiagency.com');
+    const req = await fromNextRequest(post(forwarded));
+    expect(req.url).toBe('https://missed-call.naplesaiagency.com/api/voice/incoming');
+  });
+
+  it('still derives the URL from forwarded headers outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
+    vi.stubEnv('APP_URL', '');
+    const req = await fromNextRequest(
+      post({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'tunnel.example' }),
+    );
+    expect(req.url).toBe('https://tunnel.example/api/voice/incoming');
   });
 });

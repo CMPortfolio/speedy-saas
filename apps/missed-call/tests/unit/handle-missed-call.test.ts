@@ -203,4 +203,24 @@ describe('handleMissedCall templates and edge cases', () => {
     expect(sms.sent).toHaveLength(1);
     expect(twiml).toContain('<Say>');
   });
+
+  it.each([
+    ['Toronto', '+14165550123'],
+    ['Jamaica', '+18765550123'],
+    ['Puerto Rico', '+17875550123'],
+  ])('logs a call from %s but never texts it', async (_n, from) => {
+    await run(event({ from: from as CallStatusEvent['from'] }));
+    expect(sms.sent).toHaveLength(0);
+    expect(mem.calls).toHaveLength(1);
+    expect(mem.calls[0]?.status).toBe('missed');
+  });
+
+  it('stops texting a line after 20 auto-texts in an hour, but keeps logging calls', async () => {
+    for (let i = 0; i < 25; i += 1) {
+      const from = `+1239555${String(1000 + i)}` as CallStatusEvent['from'];
+      await run(event({ callSid: `CAcap${i}`, from }));
+    }
+    expect(sms.sent).toHaveLength(20);
+    expect(mem.calls).toHaveLength(25);
+  });
 });

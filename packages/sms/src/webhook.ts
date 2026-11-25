@@ -1,5 +1,6 @@
 import { logger } from '@speedy/lib/logger';
 
+import { isProductionLike } from './guard';
 import type {
   CallStatusEvent,
   DeliveryEvent,
@@ -109,14 +110,32 @@ export interface FromRequestOptions {
   /**
    * The public origin the provider was given (`https://missed-call.naplesaiagency.com`). Behind
    * Railway's proxy `request.url` is the internal address, so the signature would not match.
-   * Defaults to SMS_WEBHOOK_PUBLIC_URL, then APP_URL, then the X-Forwarded-* headers.
+   * Defaults to SMS_WEBHOOK_PUBLIC_URL, then APP_URL. Only outside production, then the
+   * X-Forwarded-* headers (a dev tunnel). In production with neither set it throws
+   * `WebhookConfigError` rather than guess.
    */
   publicUrl?: string | undefined;
 }
 
+/** Thrown when the URL the provider signed cannot be known safely (production without a public URL). */
+export class WebhookConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WebhookConfigError';
+  }
+}
+
 function publicOrigin(request: Request, options: FromRequestOptions): string | undefined {
-  const override = options.publicUrl ?? process.env.SMS_WEBHOOK_PUBLIC_URL ?? process.env.APP_URL;
+  const override = options.publicUrl || process.env.SMS_WEBHOOK_PUBLIC_URL || process.env.APP_URL;
   if (override) return new URL(override).origin;
+  // The signature covers the URL, so the host must come from our own config. X-Forwarded-Host is
+  // set by whoever sends the request; trusting it in production would let a caller choose the
+  // URL we check their signature against.
+  if (isProductionLike()) {
+    throw new WebhookConfigError(
+      'Set SMS_WEBHOOK_PUBLIC_URL or APP_URL: webhooks cannot be verified without the public URL.',
+    );
+  }
   const host = request.headers.get('x-forwarded-host');
   if (!host) return undefined;
   const proto = request.headers.get('x-forwarded-proto') ?? 'https';
@@ -147,4 +166,27 @@ export function toResponse(res: WebhookResponse): Response {
     status: res.status,
     headers: { 'content-type': res.contentType },
   });
+}
+
+/**
+ * The whole route in one call: build the request, verify the signature, dispatch, answer.
+ * Answers 500 (and logs) when production has no public URL configured, so a misconfigured
+ * deploy fails closed instead of verifying against an attacker-chosen URL.
+ */
+export async function handleNextWebhook(
+  provider: SmsProvider,
+  request: Request,
+  handlers: WebhookHandlers,
+  options: FromRequestOptions = {},
+): Promise<Response> {
+  try {
+    const req = await fromNextRequest(request, options);
+    return toResponse(await handleWebhook(provider, req, handlers));
+  } catch (e) {
+    if (e instanceof WebhookConfigError) {
+      log.error('webhook not verified: public URL not configured', { error: e });
+      return toResponse(text(500, 'Server misconfigured'));
+    }
+    throw e;
+  }
 }

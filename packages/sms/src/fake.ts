@@ -1,5 +1,6 @@
 import { appError, err, ok, type AppError, type Result } from '@speedy/lib/result';
 
+import { fakeSmsForbidden } from './guard';
 import {
   getHeader,
   type SendTextInput,
@@ -35,6 +36,8 @@ export interface FakeProvider extends SmsProvider {
 }
 
 export function fakeProvider(): FakeProvider {
+  const forbidden = fakeSmsForbidden();
+  if (forbidden) throw new Error(forbidden);
   const sent: SentText[] = [];
   let nextFailure: AppError | undefined;
   let counter = 0;

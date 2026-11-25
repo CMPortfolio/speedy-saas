@@ -1,5 +1,5 @@
 import { logger } from '@speedy/lib/logger';
-import { maskUsPhone } from '@speedy/lib/phone';
+import { isUsDomesticPhone, maskUsPhone } from '@speedy/lib/phone';
 import type { CallStatusEvent, SmsProvider } from '@speedy/sms/provider';
 import { sendFirstOrFollowup } from '@speedy/sms/send';
 import { twimlHangup, twimlSay } from '@speedy/sms/twilio';
@@ -56,12 +56,18 @@ export async function handleMissedCall(
     return twimlHangup();
   }
 
-  const logged = await store.logMissedCall(line.id, event.from, event.callSid);
+  // Only US numbers are ever texted: the rest of the NANP (Canada, the Caribbean) is billed as
+  // international and is where SMS-pumping fraud comes from. The call is still logged.
+  const allowText = isUsDomesticPhone(event.from);
+  const logged = await store.logMissedCall(line.id, event.from, event.callSid, allowText);
   log.info('missed call logged', {
     line: line.id,
     caller: maskUsPhone(event.from),
     outcome: logged.outcome,
   });
+  if (logged.outcome === 'rate_limited') {
+    log.warn('auto-text cap reached for line', { line: line.id });
+  }
   if (logged.outcome !== 'send') return twimlSay(greeting(line.businessName, false));
 
   const body = pickTemplate(line, now);

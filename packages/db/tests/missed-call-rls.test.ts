@@ -254,5 +254,61 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       );
       expect((await run(`CA-blocked-${RUN}`, '+12395550889')).outcome).toBe('blocked');
     });
+
+    it('owners cannot lift a STOP or forge one; the service role can (START)', async () => {
+      if (!db) return;
+      const number = '+12395550661';
+      await db.asService((c) =>
+        c.query(
+          "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, $2, 'opted_out')",
+          [aliceLine, number],
+        ),
+      );
+      const del = await db.as(alice, (c) =>
+        c.query('delete from missed_call.blocked_numbers where line_id = $1 and number = $2', [
+          aliceLine,
+          number,
+        ]),
+      );
+      expect(del.rowCount).toBe(0);
+      await expect(
+        db.as(alice, (c) =>
+          c.query(
+            "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, '+12395550662', 'opted_out')",
+            [aliceLine],
+          ),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      for (const reason of ['junk', 'manual']) {
+        await db.as(alice, (c) =>
+          c.query(
+            'insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, $2, $3)',
+            [aliceLine, `+1239555066${reason === 'junk' ? 3 : 4}`, reason],
+          ),
+        );
+      }
+      const lifted = await db.asService((c) =>
+        c.query('delete from missed_call.blocked_numbers where line_id = $1 and number = $2', [
+          aliceLine,
+          number,
+        ]),
+      );
+      expect(lifted.rowCount).toBe(1);
+    });
+
+    it('owners can remove a junk block they added', async () => {
+      if (!db) return;
+      await db.as(alice, async (c) => {
+        await c.query(
+          "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, '+12395550665', 'junk')",
+          [aliceLine],
+        );
+        const del = await c.query(
+          "delete from missed_call.blocked_numbers where line_id = $1 and number = '+12395550665'",
+          [aliceLine],
+        );
+        expect(del.rowCount).toBe(1);
+      });
+    });
   },
 );

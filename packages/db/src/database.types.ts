@@ -428,11 +428,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'practice_messages_call_id_fkey';
-            columns: ['call_id'];
+            foreignKeyName: 'practice_messages_call_id_owner_id_fkey';
+            columns: ['call_id', 'owner_id'];
             isOneToOne: false;
             referencedRelation: 'practice_calls';
-            referencedColumns: ['id'];
+            referencedColumns: ['id', 'owner_id'];
           },
         ];
       };
@@ -497,6 +497,7 @@ export type Database = {
       reserve_practice_action: {
         Args: {
           p_limit?: number;
+          p_max_calls?: number;
           p_max_messages?: number;
           p_owner_id: string;
           p_window_seconds?: number;

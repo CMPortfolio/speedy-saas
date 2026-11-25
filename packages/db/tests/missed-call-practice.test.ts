@@ -22,10 +22,10 @@ async function practiceCall(owner: TestUser, caller = '+12395550101'): Promise<s
 }
 
 const reserve = async (owner: TestUser, ...args: number[]) => {
-  const [limit = 60, windowSeconds = 3600, maxMessages = 400] = args;
+  const [limit = 60, windowSeconds = 3600, maxMessages = 400, maxCalls = 100] = args;
   const { rows } = await db!.pool.query<{ r: string }>(
-    'select missed_call.reserve_practice_action($1, $2, $3, $4) as r',
-    [owner.id, limit, windowSeconds, maxMessages],
+    'select missed_call.reserve_practice_action($1, $2, $3, $4, $5) as r',
+    [owner.id, limit, windowSeconds, maxMessages, maxCalls],
   );
   return rows[0]!.r;
 };
@@ -156,6 +156,29 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       expect(await reserve(owner, 60, 3600, 6)).toBe('ok');
       await db.pool.query('delete from missed_call.practice_calls where owner_id = $1', [owner.id]);
       expect(await reserve(owner, 60, 3600, 5)).toBe('ok');
+    });
+
+    it('says full once the owner has too many practice calls, even with no texts saved', async () => {
+      if (!db) return;
+      const owner = await db.createUser();
+      for (const n of ['+12395550120', '+12395550121', '+12395550122']) {
+        await db.pool.query(
+          'insert into missed_call.practice_calls (owner_id, caller_number) values ($1, $2)',
+          [owner.id, n],
+        );
+      }
+      expect(await reserve(owner, 60, 3600, 400, 3)).toBe('full');
+      expect(await reserve(owner, 60, 3600, 400, 4)).toBe('ok');
+    });
+
+    it('a practice message cannot be filed under another owner call', async () => {
+      if (!db) return;
+      await expect(
+        db.pool.query(
+          "insert into missed_call.practice_messages (owner_id, call_id, direction, body) values ($1, $2, 'in', 'x')",
+          [bob.id, aliceCall],
+        ),
+      ).rejects.toMatchObject({ code: '23503' });
     });
   },
 );

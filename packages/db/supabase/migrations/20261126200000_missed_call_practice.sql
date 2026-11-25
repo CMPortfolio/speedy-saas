@@ -17,7 +17,10 @@ create table missed_call.practice_calls (
   -- The practice caller texted STOP.
   opted_out boolean not null default false,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Lets practice_messages point at a call AND its owner, so a message can never be filed under
+  -- another owner's call whatever id a request carries.
+  unique (id, owner_id)
 );
 
 create index practice_calls_owner_received_idx
@@ -32,12 +35,14 @@ create trigger practice_calls_set_updated_at
 create table missed_call.practice_messages (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
-  call_id uuid not null references missed_call.practice_calls (id) on delete cascade,
+  call_id uuid not null,
   -- out: the text the caller gets. in: the caller's reply. forward: the lead texted to "Your cell".
   direction text not null check (direction in ('out', 'in', 'forward')),
   body text not null check (char_length(body) <= 1600),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  foreign key (call_id, owner_id)
+    references missed_call.practice_calls (id, owner_id) on delete cascade
 );
 
 create index practice_messages_owner_created_idx
@@ -94,13 +99,14 @@ create policy "practice_action_log: no owner access"
   on missed_call.practice_action_log for all to authenticated using (false) with check (false);
 
 -- Count a practice action and say whether it may go ahead: 'ok', 'rate_limited' (more than
--- p_limit actions in the window) or 'full' (the owner already has p_max_messages practice texts
--- saved; clear practice first). Atomic per owner, so two taps cannot both squeeze under a limit.
+-- p_limit actions in the window) or 'full' (the owner already has p_max_messages practice texts or
+-- p_max_calls practice calls saved; clear practice first). Atomic per owner, so two taps cannot both squeeze under a limit.
 create function missed_call.reserve_practice_action(
   p_owner_id uuid,
   p_limit integer default 60,
   p_window_seconds integer default 3600,
-  p_max_messages integer default 400
+  p_max_messages integer default 400,
+  p_max_calls integer default 100
 )
 returns text
 language plpgsql
@@ -118,7 +124,9 @@ begin
     return 'rate_limited';
   end if;
   if (select count(*) from missed_call.practice_messages where owner_id = p_owner_id)
-       >= p_max_messages then
+       >= p_max_messages
+     or (select count(*) from missed_call.practice_calls where owner_id = p_owner_id)
+       >= p_max_calls then
     return 'full';
   end if;
   insert into missed_call.practice_action_log (owner_id) values (p_owner_id);
@@ -126,7 +134,7 @@ begin
 end;
 $$;
 
-revoke execute on function missed_call.reserve_practice_action(uuid, integer, integer, integer)
+revoke execute on function missed_call.reserve_practice_action(uuid, integer, integer, integer, integer)
   from public, anon, authenticated;
-grant execute on function missed_call.reserve_practice_action(uuid, integer, integer, integer)
+grant execute on function missed_call.reserve_practice_action(uuid, integer, integer, integer, integer)
   to service_role;

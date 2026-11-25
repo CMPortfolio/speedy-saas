@@ -17,10 +17,19 @@ Migrations, generated types and helpers for the one Supabase project every Speed
 
 ## Running the database locally
 
-Two options:
+Three options, all on the same ports and keys as `supabase start`:
 
-1. **Supabase CLI** (full stack with Auth and Storage): `cd packages/db && supabase start`, then `supabase db reset` applies the migrations. Needs Docker and access to Supabase's image registry.
-2. **Plain Postgres** (what CI uses): `pnpm --filter @speedy/db db:start` runs `postgres:17-alpine` on port 54322, then `pnpm --filter @speedy/db db:reset` applies `tests/supabase-shim.sql` (roles, `auth.users`, `auth.uid()`) and every migration. The shim is a no-op on a real Supabase database.
+1. **Local stack from Docker Hub images** (recommended here; full Auth, REST and Storage): `pnpm --filter @speedy/db db:local:up` runs Postgres, GoTrue, PostgREST and the Storage API behind an nginx gateway on `http://127.0.0.1:54321`, waits for health and applies every migration. `db:local:down` stops it and deletes data. Compose file: `local/docker-compose.yml`; roles and grants: `local/init/00-roles.sql`. Magic links are not emailed locally: tests call the Auth admin API (`generate_link`) and open the returned link.
+2. **Supabase CLI**: `cd packages/db && supabase start`, then `supabase db reset`. Needs access to Supabase's image registry (an ECR CDN), which some networks block.
+3. **Plain Postgres** (what the CI `checks` job uses): `pnpm --filter @speedy/db db:start` runs `postgres:17-alpine` on port 54322, then `pnpm --filter @speedy/db db:reset` applies `tests/supabase-shim.sql` (roles, `auth.users`, `auth.uid()`) and every migration. The shim is a no-op on a real Supabase database.
+
+Local keys (the public Supabase demo keys, safe to commit):
+
+```
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+```
 
 RLS tests connect to `DATABASE_URL` (default `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). They run when `CI`, `DATABASE_URL` or `DB_TESTS=1` is set and skip with a warning otherwise.
 

@@ -8,21 +8,35 @@ the code never touches Railway, Supabase, Twilio or DNS.
 
 ## What is already in place
 
-| Thing                | Value                                                           |
-| -------------------- | --------------------------------------------------------------- |
-| Railway service      | `missed-call` (config path `apps/missed-call/railway.json`)     |
-| Domain               | `missed-call.naplesaiagency.com` (attached, DNS done)           |
-| Supabase project ref | `rxcuuhzwgwnfbfboujak` (shared by every tool)                   |
-| Registry status      | `building`. Flip to `live` only when you decide the tool ships. |
+| Thing                | Value                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Railway project      | `26cb37f8-e9e1-4a3d-8681-180d53e2bb3a`                                                                                    |
+| Railway service      | `missed-call`, id `09d98d93-0539-4080-a88a-279fba3f35c8` (config path `apps/missed-call/railway.json`)                    |
+| Custom domain        | `missed-call.naplesaiagency.com`, attached to the service                                                                 |
+| DNS (Cloudflare)     | `missed-call` CNAME to `gxit9p2k.up.railway.app` (DNS only, not proxied) and the `_railway-verify.missed-call` TXT record |
+| Supabase project ref | `rxcuuhzwgwnfbfboujak` (shared by every tool)                                                                             |
+| Registry status      | `building`. Flip to `live` only when you decide the tool ships.                                                           |
+
+Check the domain any time:
+
+```bash
+dig +short CNAME missed-call.naplesaiagency.com   # gxit9p2k.up.railway.app.
+```
+
+and in Railway, service `missed-call`, Settings, Networking: the custom domain shows as verified with
+a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
 
 ## 1. Supabase (project `rxcuuhzwgwnfbfboujak`)
 
-1. Apply the migrations in `packages/db/supabase/migrations/` in order. The ones for this tool, after
-   `20261125000000_core.sql`, are:
+1. Apply **every file in `packages/db/supabase/migrations/`, in order**, with `supabase db push`
+   (do not pick and choose). The ones for this tool, after `20261125000000_core.sql`, are:
    `20261125004322_missed_call_init.sql`, `20261125200000_missed_call_tables.sql`,
    `20261125200050_missed_call_hardening.sql`, `20261125200100_missed_call_replies.sql`,
    `20261125200150_missed_call_reply_cap.sql`, `20261125200200_missed_call_review_fixes.sql`,
-   `20261125200300_missed_call_owner_cell_verified.sql`, `20261125200400_missed_call_review_lows.sql`.
+   `20261125200300_missed_call_owner_cell_verified.sql`, `20261125200400_missed_call_review_lows.sql`,
+   `20261125200500_missed_call_cell_verification.sql`.
+   The last one stops with an error if an owner already has two lines that both have a provider
+   number; decide which to keep, then run it again.
 2. Settings, API, **Exposed schemas**: add `missed_call` (next to `public`). Without it every call
    from the app returns "schema not found".
 3. Authentication, URL configuration: add `https://missed-call.naplesaiagency.com/auth/callback`
@@ -96,22 +110,24 @@ the code never touches Railway, Supabase, Twilio or DNS.
 
 ### Texting registration: A2P 10DLC (must be approved before owners see the tool)
 
-US carriers require registration for business texts from a local number. From the research notes
-(sources at the end):
+US carriers require registration for business texts from a local number. What Twilio requires, with
+the pages it comes from:
 
 - **Model:** Naples AI registers as an **ISV Reseller or Partner** (one approved primary customer
-  profile). **Each business owner gets their own secondary profile, brand and campaign**, built from
+  profile; see https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/onboarding-isv-api-sole-prop-new). **Each business owner gets their own secondary profile, brand and campaign**, built from
   that owner's business data. Do not use one shared brand.
 - **Campaign type:** one **Low-Volume Mixed** campaign per owner brand, covering both missed-call
   text-back and rain-day reschedule notices. Both fit customer-care and account-notification
   messaging. The sample messages and the opt-in description must describe **both** flows: mismatched
   samples are the usual reason for rejection. Split into separate campaigns only if volume grows.
-  Low-Volume Mixed is limited to under about 2,000 segments a day on T-Mobile.
+  Low-Volume Mixed is limited to under about 2,000 segments a day on T-Mobile
+  (https://www.twilio.com/docs/messaging/compliance/a2p-10dlc,
+  https://support.twilio.com/hc/en-us/articles/4403014741403).
 - **No EIN:** an owner without an EIN uses the sole proprietor flow (one brand, one campaign, one
   number, about 1,000 segments a day to T-Mobile). A US LLC has an EIN and uses the standard
-  low-volume flow.
+  low-volume flow (https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/onboarding-isv-api-sole-prop-new).
 - **Cost and timing:** Twilio passes carrier fees through at cost (roughly $0.0035 AT&T, $0.0045
-  T-Mobile, $0.005 Verizon per segment). Approval takes one or more business days, so plan
+  T-Mobile, $0.005 Verizon per segment; https://www.twilio.com/en-us/sms/pricing/us). Approval takes one or more business days, so plan
   multi-day waits per owner.
 - **Gate:** the tool is not shown to an owner until their brand and campaign are approved and the
   number is attached to the Messaging Service.
@@ -159,6 +175,9 @@ back to unconfirmed. Until then replies are saved and listed but not texted to t
 The code is texted from the line's missed-call number, so an owner cannot confirm until an admin has
 set `provider_number` (section 3). That text also needs the number's texting registration to be
 approved, like every other text.
+
+An owner can point `owner_cell` at any US number, so code texts are capped at **3 an hour and 6 a day
+per owner**, and replies are only forwarded to a cell that was confirmed with a code.
 
 ## Notes
 

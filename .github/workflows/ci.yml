@@ -87,3 +87,60 @@ jobs:
           git checkout -- packages/registry/src/tools.ts pnpm-lock.yaml
           rm -rf apps/ci-smoke packages/db/supabase/migrations/*_ci_smoke_init.sql
           test -z "$(git status --porcelain)" || { git status --porcelain; exit 1; }
+
+  e2e:
+    name: E2E and database tests (${{ matrix.app }}, local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add rain-day here once it is merged.
+        app: [job-photos, missed-call]
+    env:
+      # Runs against the local Supabase stack from packages/db/local (the same one developers use);
+      # the demo keys are read from its docker-compose file below, not copied into this workflow.
+      DB_TESTS: 1
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start the local Supabase stack and apply the migrations
+        run: pnpm --filter @speedy/db db:local:up
+
+      - name: Read the local demo keys
+        run: |
+          compose=packages/db/local/docker-compose.yml
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep -m1 'x-anon-key' $compose | awk '{print $3}')" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(grep -m1 'x-service-key' $compose | awk '{print $3}')" >> "$GITHUB_ENV"
+
+      - name: Install Playwright browser
+        run: pnpm --filter @speedy/${{ matrix.app }} exec playwright install --with-deps chromium
+
+      - name: Database-backed tests
+        run: pnpm turbo run test --filter=@speedy/db --filter=@speedy/${{ matrix.app }}
+
+      - name: E2E
+        run: pnpm turbo run test:e2e --filter=@speedy/${{ matrix.app }}
+
+      - name: Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/playwright-report
+            apps/${{ matrix.app }}/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Local Supabase logs
+        if: failure()
+        run: docker compose -f packages/db/local/docker-compose.yml logs --tail=200

@@ -15,6 +15,7 @@ import { handleInboundWebhook } from '@/features/replies/inbound-webhook';
 const CUSTOMER = '+12395550123' as E164;
 const OWNER_CELL = '+12395550111';
 const BUSINESS = '+12395550100' as E164;
+const SID = 'MG0123456789abcdef0123456789abcdef';
 
 function memoryStore(
   overrides: Partial<RecordedReply> = {},
@@ -62,10 +63,10 @@ function memoryStore(
 }
 
 /** One owner who owns the business number; a text to any other number belongs to nobody. */
-function inboundOf(store: ReplyStore): InboundStore {
+function inboundOf(store: ReplyStore, sid: string | null = SID): InboundStore {
   return {
     async ownerForNumber(to) {
-      return to === BUSINESS ? 'owner-1' : null;
+      return to === BUSINESS ? { ownerId: 'owner-1', messagingServiceSid: sid } : null;
     },
     forOwner: () => store,
   };
@@ -99,7 +100,11 @@ describe('handleInboundText', () => {
     const { store, forwards, recorded } = memoryStore();
     await handleInboundText({ provider, store: inboundOf(store) }, inbound('Can you do Thursday?'));
     expect(provider.sent).toHaveLength(1);
-    expect(provider.sent[0]).toMatchObject({ to: OWNER_CELL, from: BUSINESS });
+    expect(provider.sent[0]).toMatchObject({
+      to: OWNER_CELL,
+      from: BUSINESS,
+      messagingServiceSid: SID,
+    });
     expect(provider.sent[0]!.body).toContain('Maria Lopez');
     expect(provider.sent[0]!.body).toContain('Can you do Thursday?');
     expect(forwards).toEqual([{ id: 'reply-1', status: 'sent' }]);
@@ -181,7 +186,11 @@ describe('handleInboundText', () => {
     await handleInboundText({ provider, store: inboundOf(store) }, inbound('help', 'IN2'));
     await handleInboundText({ provider, store: inboundOf(store) }, inbound('INFO', 'IN3'));
     expect(provider.sent).toHaveLength(1);
-    expect(provider.sent[0]).toMatchObject({ to: CUSTOMER, from: BUSINESS });
+    expect(provider.sent[0]).toMatchObject({
+      to: CUSTOMER,
+      from: BUSINESS,
+      messagingServiceSid: SID,
+    });
     expect(provider.sent[0]!.body).toBe(
       'Green Gulf Lawn: reply STOP to opt out. Msg & data rates may apply.',
     );
@@ -209,6 +218,36 @@ describe('handleInboundText', () => {
 });
 
 describe('handleInboundText: failures and strangers', () => {
+  /** A provider that is not the fake one, so an owner without a Messaging Service is refused. */
+  const realProvider = () => Object.assign(fakeProvider(), { name: 'twilio' }) as never;
+
+  it('with the real provider, an owner without a Messaging Service gets no forward and no HELP answer', async () => {
+    const provider = realProvider() as ReturnType<typeof fakeProvider>;
+    const { store, forwards } = memoryStore();
+    const noService = inboundOf(store, null);
+    await handleInboundText({ provider, store: noService }, inbound('Can you do Thursday?'));
+    await handleInboundText({ provider, store: noService }, inbound('HELP', 'IN2'));
+    expect(provider.sent).toHaveLength(0);
+    // The reply is kept and the forward is marked failed, never left at "Forwarding".
+    expect(forwards).toEqual([{ id: 'reply-1', status: 'failed' }]);
+  });
+
+  it('with the real provider, an owner with a Messaging Service is forwarded as usual', async () => {
+    const provider = realProvider() as ReturnType<typeof fakeProvider>;
+    const { store } = memoryStore();
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('hi'));
+    expect(provider.sent).toHaveLength(1);
+    expect(provider.sent[0]).toMatchObject({ from: BUSINESS, messagingServiceSid: SID });
+  });
+
+  it('the fake provider needs no Messaging Service', async () => {
+    const provider = fakeProvider();
+    const { store } = memoryStore();
+    await handleInboundText({ provider, store: inboundOf(store, null) }, inbound('hi'));
+    expect(provider.sent).toHaveLength(1);
+    expect(provider.sent[0]!.messagingServiceSid).toBeUndefined();
+  });
+
   it('marks the forward failed when the provider throws, so it never sits at "Forwarding"', async () => {
     const provider = fakeProvider();
     const { store, forwards } = memoryStore();

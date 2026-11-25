@@ -23,7 +23,7 @@ const enabled = Boolean(process.env.DB_TESTS && url && anon && serviceKey);
 const TIMEOUT = { timeout: 60_000 };
 
 type Client = SupabaseClient<Database>;
-type Owner = { client: Client; id: string; number: E164; cell: E164 };
+type Owner = { client: Client; id: string; number: E164; cell: E164; sid: string };
 
 function freshNumber(prefix: string): E164 {
   // Exchange x2y is never reserved, so these pass the US check.
@@ -55,13 +55,17 @@ async function owner(name: string): Promise<Owner> {
   const who = await signedIn();
   const number = freshNumber('74');
   const cell = freshNumber('75');
+  const sid = `MG${crypto.randomUUID().replaceAll('-', '')}`;
   await service
     .schema('rain_day')
     .from('owner_settings')
-    .upsert({ owner_id: who.id, sender_number: number }, { onConflict: 'owner_id' });
+    .upsert(
+      { owner_id: who.id, sender_number: number, sender_messaging_service_sid: sid },
+      { onConflict: 'owner_id' },
+    );
   await saveVerifiedCell(service, who.id, cell);
   await service.from('profiles').update({ business_name: name }).eq('id', who.id);
-  return { ...who, number, cell };
+  return { ...who, number, cell, sid };
 }
 
 async function addCustomer(o: Owner, name: string, phone: string) {
@@ -83,7 +87,7 @@ async function sendRainDay(o: Owner) {
       optedOutPhones: await listOptedOutPhones(o.client),
       businessName: 'Green Gulf Lawn',
       provider,
-      from: o.number,
+      sender: { from: o.number, messagingServiceSid: o.sid },
       today: '2026-11-24',
     },
     {
@@ -145,7 +149,11 @@ describe.skipIf(!enabled)(
 
       const forwarded = provider.sent.slice(before);
       expect(forwarded).toHaveLength(1);
-      expect(forwarded[0]).toMatchObject({ to: a.cell, from: a.number });
+      expect(forwarded[0]).toMatchObject({
+        to: a.cell,
+        from: a.number,
+        messagingServiceSid: a.sid,
+      });
       expect(forwarded[0]!.body).toContain('Maria Lopez');
       expect(forwarded[0]!.body).toContain('Can you do Thursday instead?');
 
@@ -169,7 +177,11 @@ describe.skipIf(!enabled)(
       await receive(b.number, maria, 'Wednesday is fine');
       const forwarded = provider.sent.slice(before);
       expect(forwarded).toHaveLength(1);
-      expect(forwarded[0]).toMatchObject({ to: b.cell, from: b.number });
+      expect(forwarded[0]).toMatchObject({
+        to: b.cell,
+        from: b.number,
+        messagingServiceSid: b.sid,
+      });
       expect(forwarded[0]!.body).toContain('Maria L');
     });
 
@@ -328,7 +340,11 @@ describe.skipIf(!enabled)('STOP, START, HELP and plain replies', TIMEOUT, () => 
     await receive(o.number, freshNumber('78'), 'HELP');
     const answers = provider.sent.slice(before);
     expect(answers).toHaveLength(1);
-    expect(answers[0]).toMatchObject({ to: phone, from: o.number });
+    expect(answers[0]).toMatchObject({
+      to: phone,
+      from: o.number,
+      messagingServiceSid: o.sid,
+    });
     expect(answers[0]!.body).toBe(
       'Green Gulf Lawn: reply STOP to opt out. Msg & data rates may apply.',
     );

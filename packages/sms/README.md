@@ -182,6 +182,15 @@ part when split) or UCS-2 when any character is outside the GSM alphabet (70 and
 quote or emoji moves the whole message to UCS-2. Use it for a live preview; carriers bill and
 filter by segment.
 
+## Practice provider (`@speedy/sms/practice`)
+
+`practiceProvider(sink)` implements `SmsProvider` but hands every text to a `PracticeSink` (the
+tool's own practice table) instead of a carrier, so an owner without a real number yet can try the
+whole flow on an on-screen phone. The file imports no SDK and opens no connection (a test reads the
+source to prove it), and it has no webhooks: `verifySignature` is always false. A tool picks it on
+the server from the owner's own state (no real number assigned), never from a request value. It is
+not the fake provider and does not touch its guards.
+
 ## Out of scope here
 
 Buying numbers, A2P 10DLC registration, production credentials and a shared opt-out table in

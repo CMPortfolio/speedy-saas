@@ -4,6 +4,7 @@ import { classifyKeyword, helpReply } from '@speedy/sms/keywords';
 import type { InboundMessage, SmsProvider } from '@speedy/sms/provider';
 import { applyOptOutKeyword, type OptOutStore } from '@speedy/sms/send';
 
+import { resolveSender, serviceOf } from '@/features/settings/sender';
 import { codeOf } from '@/lib/error-code';
 
 import { FORWARD_CAP_PER_HOUR, forwardText } from './forward';
@@ -23,9 +24,15 @@ export interface RecordedReply {
  * Everything the inbound handler needs, resolved per owner: the number that was texted belongs
  * to exactly one owner, and every lookup after that stays inside that owner's data.
  */
+export interface InboundOwner {
+  ownerId: string;
+  /** The owner's own Messaging Service, which every text from their number is sent through. */
+  messagingServiceSid: string | null;
+}
+
 export interface InboundStore {
   /** The owner whose texting number is `to`, or null when it is nobody's. */
-  ownerForNumber(to: E164): Promise<string | null>;
+  ownerForNumber(to: E164): Promise<InboundOwner | null>;
   forOwner(ownerId: string): ReplyStore;
 }
 
@@ -48,12 +55,40 @@ export interface ReplyStore {
 
 const log = logger.child({ feature: 'rain-day-inbound' });
 
-async function reply(provider: SmsProvider, message: InboundMessage, body: string) {
-  const sent = await provider.sendText({ to: message.from, from: message.to, body });
+/**
+ * Texts from an owner's number go out from it and through their Messaging Service, like every other
+ * text. With a real provider an owner without a service is refused (null).
+ */
+function senderFor(provider: SmsProvider, message: InboundMessage, owner: InboundOwner) {
+  return resolveSender(
+    { sender_number: message.to, sender_messaging_service_sid: owner.messagingServiceSid },
+    provider.name,
+  );
+}
+
+async function reply(
+  provider: SmsProvider,
+  message: InboundMessage,
+  owner: InboundOwner,
+  body: string,
+) {
+  const sender = senderFor(provider, message, owner);
+  if (!sender) return;
+  const sent = await provider.sendText({
+    to: message.from,
+    from: sender.from,
+    ...serviceOf(sender),
+    body,
+  });
   if (!sent.ok) log.warn('inbound auto-reply failed', { code: sent.error.code });
 }
 
-async function forward(provider: SmsProvider, store: ReplyStore, message: InboundMessage) {
+async function forward(
+  provider: SmsProvider,
+  store: ReplyStore,
+  message: InboundMessage,
+  owner: InboundOwner,
+) {
   const recorded = await store.recordReply({
     from: message.from,
     providerMessageId: message.providerMessageId,
@@ -71,11 +106,13 @@ async function forward(provider: SmsProvider, store: ReplyStore, message: Inboun
   const cell = recorded.ownerCell as E164;
   let delivered = false;
   // Never leave a reply stuck at "Forwarding": anything but a clean send marks it failed.
-  if (isUsDomesticPhone(cell)) {
+  const sender = senderFor(provider, message, owner);
+  if (isUsDomesticPhone(cell) && sender) {
     try {
       const sent = await provider.sendText({
         to: cell,
-        from: message.to,
+        from: sender.from,
+        ...serviceOf(sender),
         body: forwardText(recorded.customerName ?? 'A customer', message.from, message.body),
       });
       delivered = sent.ok;
@@ -84,17 +121,24 @@ async function forward(provider: SmsProvider, store: ReplyStore, message: Inboun
       log.warn('forwarding a reply threw', { code: codeOf(error) });
     }
   } else {
-    log.warn('owner cell is not a US number, not forwarding');
+    log.warn(
+      'not forwarding: the owner cell is not a US number, or the owner is not ready to text',
+    );
   }
   await store.markForward(recorded.replyId, delivered ? 'sent' : 'failed');
 }
 
-async function answerHelp(provider: SmsProvider, store: ReplyStore, message: InboundMessage) {
+async function answerHelp(
+  provider: SmsProvider,
+  store: ReplyStore,
+  message: InboundMessage,
+  owner: InboundOwner,
+) {
   // Only people on a customer list get an answer, and only once a day: HELP must not become a
   // way to make us text any number over and over.
   const business = await store.helpBusinessName(message.from);
   if (!business || !(await store.claimHelp(message.from))) return;
-  await reply(provider, message, helpReply(business));
+  await reply(provider, message, owner, helpReply(business));
 }
 
 /**
@@ -111,13 +155,13 @@ export async function handleInboundText(
   message: InboundMessage,
 ): Promise<void> {
   const { provider } = deps;
-  const ownerId = await deps.store.ownerForNumber(message.to);
-  if (!ownerId) {
+  const owner = await deps.store.ownerForNumber(message.to);
+  if (!owner) {
     // Not any owner's number: store nothing, for anyone.
     log.info('text to a number that is not an owner’s, ignored', { to: maskUsPhone(message.to) });
     return;
   }
-  const store = deps.store.forOwner(ownerId);
+  const store = deps.store.forOwner(owner.ownerId);
   const keyword = classifyKeyword(message.body);
   if (keyword === 'stop') {
     await applyOptOutKeyword(store.optOuts, message.from, keyword);
@@ -128,8 +172,8 @@ export async function handleInboundText(
     return;
   }
   if (keyword === 'help') {
-    await answerHelp(provider, store, message);
+    await answerHelp(provider, store, message, owner);
     return;
   }
-  await forward(provider, store, message);
+  await forward(provider, store, message, owner);
 }

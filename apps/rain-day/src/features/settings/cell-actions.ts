@@ -15,13 +15,21 @@ import {
   NO_SENDER_MESSAGE,
   removeVerifiedCell,
   saveVerifiedCell,
-  senderNumberOf,
 } from './owner-cell';
+import { resolveSender, serviceOf, type Sender } from './sender';
 import { createVerifyStore } from './verify-store';
 
 export type CellResult = { ok: true; message?: string } | { ok: false; message: string };
 
 const FAILED = 'We could not do that just now. Try again in a minute.';
+
+async function senderForCode(providerName: string): Promise<Sender | null> {
+  const settings = await getOwnerSettings(await createServerSupabase());
+  const own = resolveSender(settings, providerName);
+  if (own) return own;
+  const fallback = providerName === 'fake' ? devDefaultSender() : null;
+  return fallback ? { from: fallback } : null;
+}
 
 /** Text a 6-digit code to the number the owner typed. Three codes an hour, six a day. */
 export async function sendCellCode(phone: string): Promise<CellResult> {
@@ -31,16 +39,18 @@ export async function sendCellCode(phone: string): Promise<CellResult> {
   // Texting Canada and the Caribbean is billed as international, so US area codes only.
   if (!isUsDomesticPhone(cell)) return { ok: false, message: 'Rain Day texts US numbers only.' };
   try {
-    // The code comes from the owner's own number; the dev default exists only for the fake provider.
-    const from =
-      senderNumberOf(await getOwnerSettings(await createServerSupabase())) ?? devDefaultSender();
-    if (!from) return { ok: false, message: NO_SENDER_MESSAGE };
+    // The code comes from the owner's own number and Messaging Service, like every other text;
+    // the dev default exists only for the fake provider.
+    const provider = getSms();
+    const sender = await senderForCode(provider.name);
+    if (!sender) return { ok: false, message: NO_SENDER_MESSAGE };
     const result = await startPhoneVerification(
-      { provider: getSms(), store: createVerifyStore(createServiceSupabase()) },
+      { provider, store: createVerifyStore(createServiceSupabase()) },
       {
         subject: user.id,
         phone: cell,
-        from,
+        from: sender.from,
+        ...serviceOf(sender),
         message: (code) => `Your Rain Day code is ${code}. It expires in 10 minutes.`,
       },
     );

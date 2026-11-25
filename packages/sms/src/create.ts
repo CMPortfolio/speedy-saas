@@ -47,9 +47,6 @@ export function createSmsProvider(
   return twilioProvider({
     accountSid: env.TWILIO_ACCOUNT_SID,
     authToken: env.TWILIO_AUTH_TOKEN,
-    ...(env.TWILIO_MESSAGING_SERVICE_SID
-      ? { messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID }
-      : {}),
     ...(options.statusCallbackUrl ? { statusCallbackUrl: options.statusCallbackUrl } : {}),
     ...(options.twilioClient ? { client: options.twilioClient } : {}),
   });

@@ -88,6 +88,20 @@ describe('startPhoneVerification', () => {
     expect(saved.expiresAt.getTime() - now.getTime()).toBe(10 * 60_000);
   });
 
+  it('sends the code through the business Messaging Service when it has one', async () => {
+    const provider = fakeProvider();
+    const store = memoryStore();
+    const start = (messagingServiceSid?: string) =>
+      startPhoneVerification(
+        { provider, store },
+        { subject: 'o', phone: PHONE, from: FROM, messagingServiceSid },
+      );
+    await start('MG00000000000000000000000000000000');
+    await start();
+    expect(provider.sent[0]?.messagingServiceSid).toBe('MG00000000000000000000000000000000');
+    expect(provider.sent[1]).not.toHaveProperty('messagingServiceSid');
+  });
+
   it('allows 3 code texts an hour and refuses the 4th without sending', async () => {
     const provider = fakeProvider();
     const store = memoryStore();

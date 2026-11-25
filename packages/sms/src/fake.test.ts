@@ -76,6 +76,21 @@ describe('fakeProvider', () => {
   });
 });
 
+describe('fakeProvider messaging service', () => {
+  it('records the Messaging Service a text was sent with', async () => {
+    const p = fakeProvider();
+    await p.sendText({
+      to: '+12395550123',
+      from: '+12395550100',
+      body: 'Hi',
+      messagingServiceSid: 'MG00000000000000000000000000000000',
+    });
+    await p.sendText({ to: '+12395550123', from: '+12395550100', body: 'Again' });
+    expect(p.sent[0]?.messagingServiceSid).toBe('MG00000000000000000000000000000000');
+    expect(p.sent[1]?.messagingServiceSid).toBeUndefined();
+  });
+});
+
 describe('fakeProvider guard', () => {
   afterEach(() => vi.unstubAllEnvs());
 

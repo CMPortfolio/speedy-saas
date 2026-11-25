@@ -31,7 +31,11 @@ function setup(n: number, optedOut: string[] = []) {
   return { rows, updates, store, provider: fakeProvider() };
 }
 
-const base = { from: '+12395550100' as const, businessName: 'Green Gulf Lawn' };
+const SID = 'MG0123456789abcdef0123456789abcdef';
+const base = {
+  sender: { from: '+12395550100' as const, messagingServiceSid: SID },
+  businessName: 'Green Gulf Lawn',
+};
 
 describe('dispatchMessages', () => {
   it('sends 15 separate texts, one per customer, each to that customer only', async () => {
@@ -47,6 +51,28 @@ describe('dispatchMessages', () => {
     }
     expect(out).toEqual({ sent: 15, failed: 0, skipped: 0 });
     expect([...updates.values()].every((u) => u.status === 'sent')).toBe(true);
+  });
+
+  it('sends every text from the owner’s number AND through the owner’s Messaging Service', async () => {
+    const { rows, store, provider } = setup(4);
+    await dispatchMessages({ provider, store, rows, ...base });
+    expect(provider.sent).toHaveLength(4);
+    for (const s of provider.sent) {
+      expect(s.from).toBe('+12395550100');
+      expect(s.messagingServiceSid).toBe(SID);
+    }
+  });
+
+  it('with no Messaging Service (the fake provider only) it sends from the number alone', async () => {
+    const { rows, store, provider } = setup(1);
+    await dispatchMessages({
+      provider,
+      store,
+      rows,
+      sender: { from: '+12395550100' },
+      businessName: 'Green Gulf Lawn',
+    });
+    expect(provider.sent[0]!.messagingServiceSid).toBeUndefined();
   });
 
   it('never has more than MAX_CONCURRENT_SENDS texts in flight', async () => {

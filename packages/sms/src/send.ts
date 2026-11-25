@@ -21,6 +21,8 @@ export interface SendFirstOrFollowupInput {
   businessName: string;
   /** True for the first text ever to this number: the opt-out footer is added. */
   isFirstContact: boolean;
+  /** The business's own Messaging Service, when it has one (see SendTextInput). */
+  messagingServiceSid?: string | undefined;
 }
 
 const log = logger.child({ pkg: 'sms' });
@@ -39,7 +41,12 @@ export async function sendFirstOrFollowup(
     return err(appError('opted_out', 'This number has asked not to receive texts.'));
   }
   const body = input.isFirstContact ? withOptOutFooter(input.body, input.businessName) : input.body;
-  return provider.sendText({ to: input.to, from: input.from, body });
+  return provider.sendText({
+    to: input.to,
+    from: input.from,
+    body,
+    ...(input.messagingServiceSid ? { messagingServiceSid: input.messagingServiceSid } : {}),
+  });
 }
 
 /**

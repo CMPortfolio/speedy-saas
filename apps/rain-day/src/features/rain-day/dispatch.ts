@@ -3,6 +3,7 @@ import { isUsDomesticPhone, type E164 } from '@speedy/lib/phone';
 import type { SmsProvider } from '@speedy/sms/provider';
 import { sendFirstOrFollowup } from '@speedy/sms/send';
 
+import { serviceOf, type Sender } from '@/features/settings/sender';
 import { codeOf } from '@/lib/error-code';
 
 export interface DispatchRow {
@@ -46,7 +47,7 @@ export async function dispatchMessages(input: {
   provider: SmsProvider;
   store: DispatchStore;
   rows: readonly DispatchRow[];
-  from: E164;
+  sender: Sender;
   businessName: string;
   concurrency?: number;
 }): Promise<DispatchOutcome> {
@@ -78,7 +79,8 @@ export async function dispatchMessages(input: {
       { isOptedOut: (n) => input.store.isOptedOut(n), setOptedOut: async () => undefined },
       {
         to: row.phone,
-        from: input.from,
+        from: input.sender.from,
+        ...serviceOf(input.sender),
         body: row.body,
         businessName: input.businessName,
         isFirstContact: row.isFirstContact,

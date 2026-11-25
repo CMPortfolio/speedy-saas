@@ -1,8 +1,8 @@
 import type { Db } from '@speedy/db/core';
 import { logger } from '@speedy/lib/logger';
-import type { E164 } from '@speedy/lib/phone';
 import type { SmsProvider } from '@speedy/sms/provider';
 
+import type { Sender } from '@/features/settings/sender';
 import type { Customer } from '@/features/customers/queries';
 import { describeNewDay } from '@/lib/dates';
 
@@ -41,7 +41,7 @@ export interface SendContext {
   optedOutPhones: ReadonlySet<string>;
   businessName: string;
   provider: SmsProvider;
-  from: E164;
+  sender: Sender;
   /** Today in New York, for describing the new day. */
   today: string;
 }
@@ -92,7 +92,7 @@ export async function runSend(ctx: SendContext, request: SendInput): Promise<Sen
     rescheduleId: row.reschedule_id,
     customers: ctx.customers,
     provider: ctx.provider,
-    from: ctx.from,
+    sender: ctx.sender,
     businessName: ctx.businessName,
   });
   if (!sent.ok) {

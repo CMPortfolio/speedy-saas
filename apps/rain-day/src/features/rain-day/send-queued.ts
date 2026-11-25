@@ -3,6 +3,7 @@ import { logger } from '@speedy/lib/logger';
 import type { E164 } from '@speedy/lib/phone';
 import type { SmsProvider } from '@speedy/sms/provider';
 
+import type { Sender } from '@/features/settings/sender';
 import type { Customer } from '@/features/customers/queries';
 
 import { createDispatchStore } from './delivery-store';
@@ -17,7 +18,7 @@ export interface SendQueuedInput {
   rescheduleId: string;
   customers: readonly Customer[];
   provider: SmsProvider;
-  from: E164;
+  sender: Sender;
   businessName: string;
 }
 
@@ -71,7 +72,7 @@ export async function sendQueuedMessages(input: SendQueuedInput): Promise<SendQu
     provider: input.provider,
     store: createDispatchStore(input.service, input.provider.name, input.ownerId),
     rows,
-    from: input.from,
+    sender: input.sender,
     businessName: input.businessName,
   });
   log.info('sent', { total: rows.length, ...outcome });

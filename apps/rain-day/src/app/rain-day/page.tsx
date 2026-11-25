@@ -6,7 +6,9 @@ import { getProfile } from '@speedy/db/core';
 
 import { ButtonLink } from '@/components/button-link';
 import { skipReason } from '@/features/rain-day/plan';
-import { getOwnerSettings, senderNumberOf } from '@/features/settings/owner-cell';
+import { env } from '@/config/env';
+import { getOwnerSettings } from '@/features/settings/owner-cell';
+import { resolveSender } from '@/features/settings/sender';
 import {
   listContactedCustomerIds,
   listCustomersForDay,
@@ -67,7 +69,7 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
         }))}
         initialTemplate={defaultTemplate(profile?.business_name ?? '')}
         businessName={profile?.business_name?.trim() ?? ''}
-        senderReady={senderNumberOf(settings) !== null}
+        senderReady={resolveSender(settings, env.SMS_PROVIDER) !== null}
       />
     </section>
   );

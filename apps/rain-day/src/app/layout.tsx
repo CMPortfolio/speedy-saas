@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { NaplesFooter } from '@speedy/ui/naples-footer';
@@ -23,11 +24,32 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
+const navLink =
+  'inline-flex min-h-tap items-center rounded-brand px-2 text-sm font-medium text-ink hover:text-primary';
+
+/** Both links need sign-in; the proxy sends signed-out owners to /sign-in and back. */
+function HeaderNav() {
+  return (
+    <nav aria-label="Your account" className="flex items-center gap-1">
+      <Link href="/customers" className={navLink}>
+        Customers
+      </Link>
+      <Link href="/settings" className={navLink}>
+        Settings
+      </Link>
+    </nav>
+  );
+}
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <AppShell toolName={tool.name} footer={<NaplesFooter currentSlug={tool.slug} />}>
+        <AppShell
+          toolName={tool.name}
+          headerRight={<HeaderNav />}
+          footer={<NaplesFooter currentSlug={tool.slug} />}
+        >
           {children}
         </AppShell>
       </body>

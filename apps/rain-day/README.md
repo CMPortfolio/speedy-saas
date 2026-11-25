@@ -4,6 +4,9 @@ When weather wipes out a day, the owner picks the day, picks the new day, and ev
 
 Speedy SaaS tool `rain-day`. Lives at `https://rain-day.naplesaiagency.com`. Tickets: [R1 scaffold](https://app.clickup.com/t/1dfc7p9xnj1), [R2 settings and customers](https://app.clickup.com/t/1dfc7p9xnj2).
 
+The moment: 2 PM, a storm parks over the route, 14 Tuesday customers get their own text in one
+tap. Sign-in is required because the tool keeps customer phone numbers.
+
 ## Run it
 
 ```bash
@@ -13,26 +16,47 @@ pnpm turbo run typecheck lint test --filter @speedy/rain-day...
 pnpm test:e2e --filter @speedy/rain-day                   # builds, starts, runs Playwright on a phone viewport
 ```
 
+The RLS tests under `tests/unit/` run against `DATABASE_URL` when `DB_TESTS=1` (or in CI) and skip
+otherwise. Start a database with `pnpm --filter @speedy/db db:start && pnpm --filter @speedy/db db:reset`.
+
+## What's here (R1–R2)
+
+- `/` landing; Start goes to `/sign-in?next=/customers`.
+- `/settings` business name and owner cell, stored on `public.profiles` (`business_name`, `phone`
+  as E.164) through `updateProfile` from `@speedy/db/core`.
+- `/customers` the list (`CustomerList` from `@speedy/ui/customer-list`), add, edit, remove.
+- `/customers/import` paste a list (`Name, phone, day[, note]`, commas/tabs/semicolons) or choose a
+  CSV (header row optional, columns found by name). The preview shows what will be imported and
+  what will be skipped with the reason, then one Import button. "Pick from phone contacts" shows
+  only on browsers with the Contact Picker API. UI and parsing come from `@speedy/ui/csv-import`
+  and `@speedy/ui/csv`; this app only supplies the phone and weekday rules.
+- Later: `/rain-day` pick the day and the new day, send (R3+), once `@speedy/sms` exists.
+
 ## Layout
 
 ```
-src/app/        routes: landing (/), sign-in, auth/callback, opengraph-image
-src/components/ presentational pieces for this tool only (shared ones go in @speedy/ui)
-src/features/   one folder per user-facing flow: server actions, queries, UI
-src/lib/        helpers that are specific to this tool
-src/hooks/      client hooks
-src/config/     env.ts (createEnv) and constants
-tests/          Playwright one-moment test(s); tests/unit for Vitest
+src/app/        routes: landing (/), sign-in, auth/callback, customers, customers/new,
+                customers/[id]/edit, customers/import, settings, opengraph-image
+src/components/ button-link, contacts-picker-button (client only, no server imports)
+src/features/   customers (schema, queries, server actions, forms), settings (action, form)
+src/lib/        weekday parsing and names, form-state helpers and the shared phone field
+tests/          smoke.spec.ts (Playwright); tests/unit for Vitest incl. the RLS test
 tool.config.ts  slug, name, scope line, schema, dev port, URL
 ```
 
 ## Database
 
-This tool's tables live in the Postgres schema `rain_day` in the shared Supabase project.
-Migrations go in `packages/db/supabase/migrations/` (one was created with the scaffold). Every
-table has RLS with a policy per operation. After a migration run `pnpm db:types` and commit.
-Expose the schema to the API: `api.schemas` in `packages/db/supabase/config.jsonc` locally and
-the hosted project's API settings in production.
+Tables live in the Postgres schema `rain_day` in the shared Supabase project.
+
+- `rain_day.customers` (R2): `id`, `owner_id`, `name`, `phone` (E.164, unique per owner),
+  `service_day` (0 = Sunday … 6 = Saturday), `note`, `opted_out`, timestamps. RLS: one policy per
+  operation, `owner_id = (select auth.uid())`. Index on `(owner_id, service_day)`.
+- Later: `reschedules`, `reschedule_messages`.
+
+Migrations: `packages/db/supabase/migrations/*_rain_day_*.sql`. Types are in
+`packages/db/src/database.types.ts` (`Database['rain_day']`); regenerate with `pnpm db:types`
+once the hosted project has the schema. The schema is exposed in `api.schemas` of
+`packages/db/supabase/config.jsonc`; the hosted project's API settings need the same.
 
 ## Deploy (Railway, one service per tool)
 
@@ -50,10 +74,10 @@ the env vars.
 
 ## Definition of Done (from CLAUDE.md)
 
-- [ ] Registry entry in `packages/registry` (status `live` only when the engineer says so)
-- [ ] `<NaplesFooter />` in the root layout
-- [ ] Landing page with title, description and Open Graph image
-- [ ] This README opens with the scope line
-- [ ] `.env.example` complete
-- [ ] Playwright test for the one-moment flow on a phone viewport
-- [ ] RLS on every table, types regenerated
+- [x] Registry entry in `packages/registry` (status `live` only when the engineer says so)
+- [x] `<NaplesFooter />` in the root layout
+- [x] Landing page with title, description and Open Graph image
+- [x] This README opens with the scope line
+- [x] `.env.example` complete
+- [x] Playwright test on a phone viewport (smoke + sign-in redirects; one-moment flow from R3)
+- [x] RLS on every table, types updated by hand until `pnpm db:types` can run

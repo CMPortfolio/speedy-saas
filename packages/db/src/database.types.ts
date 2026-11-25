@@ -156,8 +156,66 @@ export type Database = {
     Enums: { membership_role: 'owner' | 'member' };
     CompositeTypes: Record<never, never>;
   };
+  rain_day: {
+    Tables: {
+      customers: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          phone: string;
+          service_day: number;
+          note: string | null;
+          opted_out: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+          phone: string;
+          service_day: number;
+          note?: string | null;
+          opted_out?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          name?: string;
+          phone?: string;
+          service_day?: number;
+          note?: string | null;
+          opted_out?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+    };
+    Views: Record<never, never>;
+    Functions: Record<never, never>;
+    Enums: Record<never, never>;
+    CompositeTypes: Record<never, never>;
+  };
 };
 
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
 export type InsertOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert'];
 export type UpdateOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update'];
+
+/** Row types for a tool's own schema, e.g. `SchemaTables<'rain_day', 'customers'>`. */
+export type SchemaTables<
+  S extends keyof Database,
+  T extends keyof Database[S]['Tables'],
+> = Database[S]['Tables'][T] extends { Row: infer R } ? R : never;
+export type SchemaInsertOf<
+  S extends keyof Database,
+  T extends keyof Database[S]['Tables'],
+> = Database[S]['Tables'][T] extends { Insert: infer I } ? I : never;
+export type SchemaUpdateOf<
+  S extends keyof Database,
+  T extends keyof Database[S]['Tables'],
+> = Database[S]['Tables'][T] extends { Update: infer U } ? U : never;

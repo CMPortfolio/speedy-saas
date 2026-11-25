@@ -11,7 +11,10 @@
     "./empty-state": "./src/empty-state.tsx",
     "./shell": "./src/shell.tsx",
     "./naples-footer": "./src/naples-footer.tsx",
-    "./more-from-naples-ai": "./src/more-from-naples-ai.tsx"
+    "./more-from-naples-ai": "./src/more-from-naples-ai.tsx",
+    "./customer-list": "./src/customer-list.tsx",
+    "./csv-import": "./src/csv-import.tsx",
+    "./csv": "./src/csv.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

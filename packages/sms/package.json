@@ -12,7 +12,8 @@
     "./send": "./src/send.ts",
     "./env": "./src/env.ts",
     "./create": "./src/create.ts",
-    "./verify-phone": "./src/verify-phone.ts"
+    "./verify-phone": "./src/verify-phone.ts",
+    "./segments": "./src/segments.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

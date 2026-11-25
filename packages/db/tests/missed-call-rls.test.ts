@@ -276,14 +276,14 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       const second = (await log(`CA-r2-${RUN}`)).rows[0] as { call_id: string };
       const reply = (body: string, id: string | null, who = caller) =>
         db!.asService(async (c) => {
-          const r = await c.query<{ call_id: string | null; outcome: string }>(
+          const r = await c.query<{ call_id: string | null; outcome: string; forward: boolean }>(
             'select * from missed_call.record_reply($1, $2, $3, $4)',
             [aliceLine, who, body, id],
           );
           return r.rows[0]!;
         });
       const first = await reply('leaking water heater', `SM-${RUN}-1`);
-      expect(first).toEqual({ call_id: second.call_id, outcome: 'recorded' });
+      expect(first).toEqual({ call_id: second.call_id, outcome: 'recorded', forward: true });
       expect((await reply('leaking water heater', `SM-${RUN}-1`)).outcome).toBe('duplicate');
       const status = await db.pool.query('select status from missed_call.calls where id = $1', [
         second.call_id,
@@ -401,6 +401,62 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       await expect(
         db.as(null, (c) => c.query("select missed_call.mark_call($1, 'junk')", [aliceCall])),
       ).rejects.toSatisfy(isDenied);
+    });
+
+    it('owners cannot lift a STOP or forge one; the service role can (START)', async () => {
+      if (!db) return;
+      const number = '+12395550661';
+      await db.asService((c) =>
+        c.query(
+          "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, $2, 'opted_out')",
+          [aliceLine, number],
+        ),
+      );
+      const del = await db.as(alice, (c) =>
+        c.query('delete from missed_call.blocked_numbers where line_id = $1 and number = $2', [
+          aliceLine,
+          number,
+        ]),
+      );
+      expect(del.rowCount).toBe(0);
+      await expect(
+        db.as(alice, (c) =>
+          c.query(
+            "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, '+12395550662', 'opted_out')",
+            [aliceLine],
+          ),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      for (const reason of ['junk', 'manual']) {
+        await db.as(alice, (c) =>
+          c.query(
+            'insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, $2, $3)',
+            [aliceLine, `+1239555066${reason === 'junk' ? 3 : 4}`, reason],
+          ),
+        );
+      }
+      const lifted = await db.asService((c) =>
+        c.query('delete from missed_call.blocked_numbers where line_id = $1 and number = $2', [
+          aliceLine,
+          number,
+        ]),
+      );
+      expect(lifted.rowCount).toBe(1);
+    });
+
+    it('owners can remove a junk block they added', async () => {
+      if (!db) return;
+      await db.as(alice, async (c) => {
+        await c.query(
+          "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, '+12395550665', 'junk')",
+          [aliceLine],
+        );
+        const del = await c.query(
+          "delete from missed_call.blocked_numbers where line_id = $1 and number = '+12395550665'",
+          [aliceLine],
+        );
+        expect(del.rowCount).toBe(1);
+      });
     });
   },
 );

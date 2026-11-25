@@ -321,7 +321,15 @@ export type Database = {
     Views: Record<never, never>;
     Functions: {
       log_missed_call: {
-        Args: { p_line_id: string; p_caller: string; p_call_sid: string; p_cooldown?: string };
+        Args: {
+          p_line_id: string;
+          p_caller: string;
+          p_call_sid: string;
+          p_cooldown?: string;
+          p_allow_text?: boolean;
+          p_hourly_cap?: number;
+          p_daily_cap?: number;
+        };
         Returns: { call_id: string; outcome: string; first_contact: boolean }[];
       };
       record_reply: {

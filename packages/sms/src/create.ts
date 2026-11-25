@@ -1,5 +1,6 @@
 import type { SmsEnv } from './env';
 import { fakeProvider } from './fake';
+import { fakeSmsForbidden } from './guard';
 import type { SmsProvider } from './provider';
 import { twilioProvider, type TwilioProviderOptions } from './twilio';
 
@@ -31,11 +32,12 @@ export function createSmsProvider(
   const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV ?? 'development';
 
   if (env.SMS_PROVIDER === 'fake') {
-    if (nodeEnv === 'production') {
-      throw new SmsConfigError(
-        'SMS_PROVIDER=fake is not allowed in production. Set SMS_PROVIDER=twilio and the TWILIO_* vars.',
-      );
-    }
+    const forbidden = fakeSmsForbidden({
+      nodeEnv,
+      railwayEnvironment: process.env.RAILWAY_ENVIRONMENT,
+      allowFakeSms: process.env.ALLOW_FAKE_SMS,
+    });
+    if (forbidden) throw new SmsConfigError(forbidden);
     return fakeProvider();
   }
 

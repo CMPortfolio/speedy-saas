@@ -7,16 +7,16 @@ until Chris picks a provider). A Telnyx or Plivo adapter would be one more file 
 
 ## Exports
 
-| Import                 | What it is                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| `@speedy/sms/provider` | `SmsProvider` interface and the event types (`InboundMessage`, `CallStatusEvent`, `DeliveryEvent`)      |
-| `@speedy/sms/twilio`   | `twilioProvider(options)`, `verifyTwilioSignature`, `parseTwilioWebhook`, `twimlHangup()`, `twimlSay()` |
-| `@speedy/sms/fake`     | `fakeProvider()`: in-memory provider with `sent[]`, `inbound(event)`, `failNext()`, `reset()`           |
-| `@speedy/sms/webhook`  | `handleWebhook(provider, req, handlers)`, `fromNextRequest(request)`, `toResponse(res)`                 |
-| `@speedy/sms/keywords` | `classifyKeyword(body)`, `helpReply(business)`, `withOptOutFooter(body, business)`                      |
-| `@speedy/sms/send`     | `OptOutStore` interface, `sendFirstOrFollowup(provider, store, input)`, `applyOptOutKeyword`            |
-| `@speedy/sms/env`      | `smsEnvSchema` to spread into a tool's `createEnv`                                                      |
-| `@speedy/sms/create`   | `createSmsProvider(env)`: picks fake or Twilio from env, refuses fake in production                     |
+| Import                 | What it is                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `@speedy/sms/provider` | `SmsProvider` interface and the event types (`InboundMessage`, `CallStatusEvent`, `DeliveryEvent`)                 |
+| `@speedy/sms/twilio`   | `twilioProvider(options)`, `verifyTwilioSignature`, `parseTwilioWebhook`, `twimlHangup()`, `twimlSay()`            |
+| `@speedy/sms/fake`     | `fakeProvider()`: in-memory provider with `sent[]`, `inbound(event)`, `failNext()`, `reset()`                      |
+| `@speedy/sms/webhook`  | `handleNextWebhook(provider, request, handlers)` (a whole route), `handleWebhook`, `fromNextRequest`, `toResponse` |
+| `@speedy/sms/keywords` | `classifyKeyword(body)`, `helpReply(business)`, `withOptOutFooter(body, business)`                                 |
+| `@speedy/sms/send`     | `OptOutStore` interface, `sendFirstOrFollowup(provider, store, input)`, `applyOptOutKeyword`                       |
+| `@speedy/sms/env`      | `smsEnvSchema` to spread into a tool's `createEnv`                                                                 |
+| `@speedy/sms/create`   | `createSmsProvider(env)`: picks fake or Twilio from env, refuses fake in production                                |
 
 No barrel file; import each path (CLAUDE.md rule 4).
 
@@ -124,11 +124,18 @@ if (!result.ok && result.error.code === 'opted_out') {
 }
 ```
 
+### Production guards
+
+- `fakeProvider()` and `createSmsProvider` refuse the fake provider when `NODE_ENV=production`
+  (unless `ALLOW_FAKE_SMS=1`, for a local e2e run) and always on Railway (`RAILWAY_ENVIRONMENT`).
+- In production the signing URL comes only from `SMS_WEBHOOK_PUBLIC_URL` or `APP_URL`. With
+  neither set, `handleNextWebhook` answers 500 and logs; it never trusts `X-Forwarded-Host`.
+
 ### Behind Railway's proxy
 
 Twilio signs the public URL it posted to. Inside the container `request.url` is the internal
 address, so `fromNextRequest` rewrites the origin to `SMS_WEBHOOK_PUBLIC_URL`, then `APP_URL`, then
-the `X-Forwarded-Proto`/`X-Forwarded-Host` headers. Set `APP_URL` (every tool already has it) and
+the `X-Forwarded-Proto`/`X-Forwarded-Host` headers outside production only. Set `APP_URL` (every tool already has it) and
 the signature check works; set `SMS_WEBHOOK_PUBLIC_URL` only when the webhook host differs.
 
 ## URLs to paste into the provider console (Twilio)

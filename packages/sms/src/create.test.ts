@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { createEnv } from '@speedy/lib/env';
@@ -67,5 +67,13 @@ describe('createSmsProvider', () => {
     };
     const p = createSmsProvider(twilioEnv, { nodeEnv: 'production', twilioClient: client });
     expect(p.name).toBe('twilio');
+  });
+});
+
+describe('createSmsProvider on Railway', () => {
+  it('refuses the fake provider when RAILWAY_ENVIRONMENT is set, whatever NODE_ENV says', () => {
+    vi.stubEnv('RAILWAY_ENVIRONMENT', 'production');
+    expect(() => createSmsProvider(parse({}), { nodeEnv: 'development' })).toThrow(SmsConfigError);
+    vi.unstubAllEnvs();
   });
 });

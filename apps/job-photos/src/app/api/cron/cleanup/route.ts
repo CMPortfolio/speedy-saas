@@ -25,6 +25,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await cleanupExpiredJobs({
       store: supabaseCleanupStore(createServiceSupabase()),
       storage: getStorage(),
+      maxJobs: 500,
       onError: (jobId, error) => log.error('cleanup failed for job', { jobId, error }),
     });
     log.info('cleanup finished', { ...result });

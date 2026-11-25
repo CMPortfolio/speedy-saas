@@ -32,8 +32,9 @@ separate change once the steps below are done and you say it is shipping.
 1. New Service from the same repo, name it `job-photos-cleanup`. Same root directory.
 2. Config path = `apps/job-photos/railway.cleanup.json`. It runs
    `pnpm --filter @speedy/job-photos cleanup` on schedule `0 8 * * *` (08:00 UTC daily).
-3. Give it only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
-   `SUPABASE_SERVICE_ROLE_KEY` (use the same values as the web service, via Railway shared variables).
+3. Give it only `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (the same values as
+   the web service, via Railway shared variables). It runs the TypeScript source directly and does
+   not build the web app.
 4. The run deletes anonymous jobs whose 30-day expiry has passed, with their photos and logo from
    storage. Signed-in (claimed) jobs are never touched. A run that could not clean a job exits 1,
    so it shows as failed in Railway.
@@ -66,7 +67,7 @@ separate change once the steps below are done and you say it is shipping.
 | `LOG_LEVEL`                      | `info`                                         | optional                                            |
 | `PORT`                           | set by Railway                                 | do not set it yourself                              |
 
-The `job-photos-cleanup` service needs only the three Supabase variables.
+The `job-photos-cleanup` service needs only `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### Before you flip the registry to `live`
 

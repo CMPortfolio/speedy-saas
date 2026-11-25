@@ -31,6 +31,7 @@ const log = logger.child({ script: 'cleanup' });
 const result = await cleanupExpiredJobs({
   store: supabaseCleanupStore(client),
   storage: supabaseStorage(client, STORAGE_BUCKET),
+  maxJobs: 5000,
   onError: (jobId, error) => log.error('cleanup failed for job', { jobId, error }),
 });
 log.info('cleanup finished', { ...result });

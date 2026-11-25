@@ -1,9 +1,14 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "corepack enable && pnpm install --frozen-lockfile && pnpm turbo build --filter=@speedy/job-photos",
-    "watchPatterns": ["apps/job-photos/**", "packages/**", "pnpm-lock.yaml"]
+    "builder": "RAILPACK",
+    "watchPatterns": [
+      "apps/job-photos/**",
+      "packages/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "turbo.json"
+    ]
   },
   "deploy": {
     "startCommand": "pnpm --filter @speedy/job-photos cleanup",

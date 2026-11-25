@@ -26,6 +26,13 @@ export const claimRequestSchema = z.object({
 });
 export type ClaimRequest = z.infer<typeof claimRequestSchema>;
 
+/**
+ * Stored in claim_token_hash when cleanup has taken over an expired anonymous job. The column
+ * must hold a 64-char hex value while a job has no owner, and nothing hashes to all zeros, so
+ * no device token can ever match it. claimJob refuses jobs carrying it.
+ */
+export const RETIRED_CLAIM_HASH = '0'.repeat(64);
+
 export interface ClaimableJob {
   owner_id: string | null;
   claim_token_hash: string | null;
@@ -37,7 +44,13 @@ export interface ClaimableJob {
  * to keep the job, so a job past its anonymous expiry (but not yet cleaned up) is theirs too.
  */
 export function canClaim(job: ClaimableJob | null | undefined, tokenMatches: boolean): boolean {
-  return Boolean(job && job.owner_id === null && job.claim_token_hash !== null && tokenMatches);
+  return Boolean(
+    job &&
+    job.owner_id === null &&
+    job.claim_token_hash !== null &&
+    job.claim_token_hash !== RETIRED_CLAIM_HASH &&
+    tokenMatches,
+  );
 }
 
 export interface DecodedDataUrl {

@@ -7,6 +7,7 @@ import { randomSlug, randomToken } from '@speedy/lib/ids';
 
 import { ANONYMOUS_JOB_TTL_DAYS, type PhotoKind } from '@/config/constants';
 
+import { RETIRED_CLAIM_HASH } from '../claims';
 import type { CreateJobInput, CreatedJob, UpdateJobInput } from '../schemas';
 
 export type JobRow = Database['job_photos']['Tables']['jobs']['Row'];
@@ -97,6 +98,8 @@ export async function claimJob(id: string, ownerId: string): Promise<boolean> {
     .update({ owner_id: ownerId, expires_at: null, claim_token_hash: null })
     .eq('id', id)
     .is('owner_id', null)
+    // Atomic with cleanup's retire(): whichever UPDATE runs first wins, the other matches no row.
+    .neq('claim_token_hash', RETIRED_CLAIM_HASH)
     .select('id');
   if (error) throw error;
   return data.length > 0;

@@ -82,10 +82,10 @@ are never deleted.
 
 ## Definition of Done (from CLAUDE.md)
 
-- [ ] Registry entry in `packages/registry` (status `live` only when the engineer says so)
-- [ ] `<NaplesFooter />` in the root layout
-- [ ] Landing page with title, description and Open Graph image
-- [ ] This README opens with the scope line
-- [ ] `.env.example` complete
-- [ ] Playwright test for the one-moment flow on a phone viewport
-- [ ] RLS on every table, types regenerated
+- [x] Registry entry in `packages/registry` (status `live` only when the engineer says so)
+- [x] `<NaplesFooter />` in the root layout
+- [x] Landing page with title, description and Open Graph image
+- [x] This README opens with the scope line
+- [x] `.env.example` complete
+- [x] Playwright test for the one-moment flow on a phone viewport
+- [x] RLS on every table, types regenerated

@@ -60,10 +60,21 @@ function sendTemplate(
   });
 }
 
+function noteOutcome(line: LineRecord, logged: LogResult, caller: CallStatusEvent['from']): void {
+  log.info('missed call logged', {
+    line: line.id,
+    caller: maskUsPhone(caller),
+    outcome: logged.outcome,
+  });
+  if (logged.outcome === 'rate_limited') {
+    log.warn('auto-text cap reached for line', { line: line.id });
+  }
+}
+
 /**
  * Decides whether a logged call is texted. A line with no Messaging Service is not ready on the real
- * provider in production: nothing is sent, and the cooldown claim is given back so the first call after the admin finishes setup is
- * still texted. Returns true when the send was held.
+ * provider in production: nothing is sent, and the cooldown claim is given back so the first call
+ * after the admin finishes setup is still texted. Returns true when the send was held.
  */
 async function holdSend(
   deps: MissedCallDeps,
@@ -71,9 +82,6 @@ async function holdSend(
   logged: LogResult,
   caller: CallStatusEvent['from'],
 ): Promise<boolean> {
-  if (logged.outcome === 'rate_limited') {
-    log.warn('auto-text cap reached for line', { line: line.id });
-  }
   if (logged.outcome !== 'send' || !serviceMissing(line, deps.provider)) return false;
   log.warn('line has no messaging service', { line: line.id, caller: maskUsPhone(caller) });
   try {
@@ -108,16 +116,14 @@ export async function handleMissedCall(
   // international and is where SMS-pumping fraud comes from. The call is still logged.
   const allowText = isUsDomesticPhone(event.from);
   const logged = await store.logMissedCall(line.id, event.from, event.callSid, allowText);
-  log.info('missed call logged', {
-    line: line.id,
-    caller: maskUsPhone(event.from),
-    outcome: logged.outcome,
-  });
+  noteOutcome(line, logged, event.from);
   if (await holdSend(deps, line, logged, event.from)) {
     return twimlSay(greeting(line.businessName, false));
   }
-  // A retried webhook means the first one already texted, so it hears the same greeting.
-  if (logged.outcome === 'duplicate') return twimlSay(greeting(line.businessName, true));
+  // A retried webhook hears what the first one did: it said a text was on its way only if one was.
+  if (logged.outcome === 'duplicate') {
+    return twimlSay(greeting(line.businessName, !serviceMissing(line, deps.provider)));
+  }
   if (logged.outcome !== 'send') return twimlSay(greeting(line.businessName, false));
 
   const body = pickTemplate(line, now);

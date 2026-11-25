@@ -9,31 +9,31 @@ stacked `CU-<ticket>` branches with one draft PR each. Merge order is top to bot
 retargets each PR to `main` as its base merges. Nothing has been merged. ClickUp was never set to
 `complete` (that is yours after merge).
 
-| Ticket | Branch | PR | State |
-| --- | --- | --- | --- |
-| F1 repo baseline | `CU-1dfc7p9xnhg-speedy-saas-f1-repo-baseline-pnpm-turbor` | #1 (base main) | done |
-| F2 config + lib | `CU-1dfc7p9xnhh-speedy-saas-f2-packages-config-and-packa` | #2 | done |
-| F3 db + auth | `CU-1dfc7p9xnhj-speedy-saas-f3-shared-supabase-core-sche` | #4 | done |
-| F4 ui + registry | `CU-1dfc7p9xnhk-speedy-saas-f4-packages-ui-shell-naplesf` | #3 (base F2) | done |
-| F5 template + new-tool (+ local Supabase stack) | `CU-1dfc7p9xnhm-speedy-saas-f5-tool-template-and-pnpm-ne` | #5 (merges F3+F4) | done |
-| P1 job-photos scaffold | `CU-1dfc7p9xnhn-job-photos-p1-scaffold-the-job-photos-ap` | #7 | done |
-| P2 capture + upload | `CU-1dfc7p9xnhp-job-photos-p2-capture-and-upload-without` | #10 | done |
-| P3 share page + OG | `CU-1dfc7p9xnhq-job-photos-p3-public-share-page-open-gra` | #12 | done |
-| P4 sign in + claim | `CU-1dfc7p9xnhr-job-photos-p4-sign-in-to-save-past-jobs` | #13 | done |
-| P5 landing + e2e | `CU-1dfc7p9xnht-job-photos-p5-landing-page-and-end-to-en` | none | **todo** (local branch only, see below) |
-| P6 deploy config | `CU-1dfc7p9xnhu-job-photos-p6-deploy-config-and-launch-c` | none | **todo** |
-| M1 missed-call scaffold | `CU-1dfc7p9xnhv-missed-call-m1-scaffold-the-missed-call` | #6 | done |
-| M2 packages/sms | `CU-1dfc7p9xnhw-missed-call-m2-packages-sms-send-receive` | #9 | done |
-| M3 webhook, auto-text, cooldown | `CU-1dfc7p9xnhx-missed-call-m3-missed-call-webhook-auto` | none | **todo** (local branch only) |
-| M4 replies, forward, list | `CU-1dfc7p9xnhy-missed-call-m4-reply-capture-forward-to` | none | **todo** |
-| M5 setup, landing, e2e | `CU-1dfc7p9xnhz-missed-call-m5-setup-flow-landing-page-a` | none | **todo** |
-| M6 deploy config | `CU-1dfc7p9xnj0-missed-call-m6-deploy-config-and-launch` | none | **todo** |
-| R1 rain-day scaffold | `CU-1dfc7p9xnj1-rain-day-r1-scaffold-the-rain-day-app` | #8 | done |
-| R2 settings + customers | `CU-1dfc7p9xnj2-rain-day-r2-owner-settings-and-customer` | #11 | done |
-| R3 send flow via sms | `CU-1dfc7p9xnj3-rain-day-r3-rain-day-send-flow-through-p` | none | **todo** (local branch only) |
-| R4 replies, opt-out, history | `CU-1dfc7p9xnj4-rain-day-r4-replies-forwarding-opt-out-a` | none | **todo** |
-| R5 landing + e2e | `CU-1dfc7p9xnj5-rain-day-r5-landing-page-and-end-to-end` | none | **todo** |
-| R6 deploy config | `CU-1dfc7p9xnj6-rain-day-r6-deploy-config-and-launch-che` | none | **todo** |
+| Ticket                                          | Branch                                                    | PR                | State                                   |
+| ----------------------------------------------- | --------------------------------------------------------- | ----------------- | --------------------------------------- |
+| F1 repo baseline                                | `CU-1dfc7p9xnhg-speedy-saas-f1-repo-baseline-pnpm-turbor` | #1 (base main)    | done                                    |
+| F2 config + lib                                 | `CU-1dfc7p9xnhh-speedy-saas-f2-packages-config-and-packa` | #2                | done                                    |
+| F3 db + auth                                    | `CU-1dfc7p9xnhj-speedy-saas-f3-shared-supabase-core-sche` | #4                | done                                    |
+| F4 ui + registry                                | `CU-1dfc7p9xnhk-speedy-saas-f4-packages-ui-shell-naplesf` | #3 (base F2)      | done                                    |
+| F5 template + new-tool (+ local Supabase stack) | `CU-1dfc7p9xnhm-speedy-saas-f5-tool-template-and-pnpm-ne` | #5 (merges F3+F4) | done                                    |
+| P1 job-photos scaffold                          | `CU-1dfc7p9xnhn-job-photos-p1-scaffold-the-job-photos-ap` | #7                | done                                    |
+| P2 capture + upload                             | `CU-1dfc7p9xnhp-job-photos-p2-capture-and-upload-without` | #10               | done                                    |
+| P3 share page + OG                              | `CU-1dfc7p9xnhq-job-photos-p3-public-share-page-open-gra` | #12               | done                                    |
+| P4 sign in + claim                              | `CU-1dfc7p9xnhr-job-photos-p4-sign-in-to-save-past-jobs`  | #13               | done                                    |
+| P5 landing + e2e                                | `CU-1dfc7p9xnht-job-photos-p5-landing-page-and-end-to-en` | none              | **todo** (local branch only, see below) |
+| P6 deploy config                                | `CU-1dfc7p9xnhu-job-photos-p6-deploy-config-and-launch-c` | none              | **todo**                                |
+| M1 missed-call scaffold                         | `CU-1dfc7p9xnhv-missed-call-m1-scaffold-the-missed-call`  | #6                | done                                    |
+| M2 packages/sms                                 | `CU-1dfc7p9xnhw-missed-call-m2-packages-sms-send-receive` | #9                | done                                    |
+| M3 webhook, auto-text, cooldown                 | `CU-1dfc7p9xnhx-missed-call-m3-missed-call-webhook-auto`  | none              | **todo** (local branch only)            |
+| M4 replies, forward, list                       | `CU-1dfc7p9xnhy-missed-call-m4-reply-capture-forward-to`  | none              | **todo**                                |
+| M5 setup, landing, e2e                          | `CU-1dfc7p9xnhz-missed-call-m5-setup-flow-landing-page-a` | none              | **todo**                                |
+| M6 deploy config                                | `CU-1dfc7p9xnj0-missed-call-m6-deploy-config-and-launch`  | none              | **todo**                                |
+| R1 rain-day scaffold                            | `CU-1dfc7p9xnj1-rain-day-r1-scaffold-the-rain-day-app`    | #8                | done                                    |
+| R2 settings + customers                         | `CU-1dfc7p9xnj2-rain-day-r2-owner-settings-and-customer`  | #11               | done                                    |
+| R3 send flow via sms                            | `CU-1dfc7p9xnj3-rain-day-r3-rain-day-send-flow-through-p` | none              | **todo** (local branch only)            |
+| R4 replies, opt-out, history                    | `CU-1dfc7p9xnj4-rain-day-r4-replies-forwarding-opt-out-a` | none              | **todo**                                |
+| R5 landing + e2e                                | `CU-1dfc7p9xnj5-rain-day-r5-landing-page-and-end-to-end`  | none              | **todo**                                |
+| R6 deploy config                                | `CU-1dfc7p9xnj6-rain-day-r6-deploy-config-and-launch-che` | none              | **todo**                                |
 
 Three phase-2 branches exist locally in agent worktrees (nothing pushed, nothing uncommitted):
 

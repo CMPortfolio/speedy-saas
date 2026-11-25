@@ -24,12 +24,19 @@ Prepaid and MVNO plans are unverified. The setup page tells those owners to turn
 `src/config/carrier-codes.ts`. The tests in `tests/unit/setup.test.ts` pin the current codes and the
 "only Verizon verified" state, so update them with the data file.
 
-## Owner cell confirmation (not wired yet)
+## Owner cell confirmation
 
-Reply forwarding is off for a line until `missed_call.lines.owner_cell_verified` is true (default
-false, and an owner cannot set it themselves). The one-time-code step plugs in through
-`OwnerCellVerifier` in `src/features/setup/verify-cell.ts`; until the shared helper lands, replies
-are saved and shown in the list but not texted to the owner.
+Reply forwarding is off for a line until the owner confirms their cell on `/setup`: "Send code" texts
+a 6-digit code (10 minutes, five tries, three codes an hour) from the line's own number, and the
+owner types it back. `missed_call.lines.owner_cell_verified` is set by the server only, after
+re-checking that the cell on the line is still the one the code went to; changing the cell puts it
+back to unconfirmed. Until then replies are saved and listed but not texted to the owner.
+
+The code is texted from the line's missed-call number, so an owner cannot confirm until an admin has
+set `provider_number` (see below). That text also needs the number's texting registration to be
+approved, like every other text.
+
+Times on the setup page and the quiet hours are Eastern only for v1.
 
 ## Provider number
 

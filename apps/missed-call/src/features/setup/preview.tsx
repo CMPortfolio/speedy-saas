@@ -1,3 +1,4 @@
+import { countSegments, MAX_COMFORTABLE_SEGMENTS } from '@speedy/sms/segments';
 import { withOptOutFooter } from '@speedy/sms/keywords';
 
 import { formatClock, type OpenHours } from './hours';
@@ -7,6 +8,31 @@ interface PreviewProps {
   template: string;
   afterHoursTemplate: string;
   hours: OpenHours | null;
+}
+
+/** How many text messages this will cost, and a plain warning when it is more than two. */
+function Segments({ text }: { text: string }) {
+  const count = countSegments(text);
+  if (count.segments === 0) return null;
+  const tooLong = count.segments > MAX_COMFORTABLE_SEGMENTS;
+  const curly = count.nonGsm.filter((c) => /[’‘“”]/.test(c));
+  return (
+    <div className="space-y-1 text-sm">
+      <p className={tooLong ? 'font-medium text-danger' : 'text-muted'} data-testid="segment-count">
+        {count.segments} {count.segments === 1 ? 'message' : 'messages'} ({count.length} characters)
+      </p>
+      {tooLong && (
+        <p role="status" className="text-danger" data-testid="segment-warning">
+          This is long: it goes out as {count.segments} messages.{' '}
+          {count.encoding === 'ucs2'
+            ? curly.length > 0
+              ? 'Curly quotes and apostrophes make every message shorter. Use plain \' and " to fit more.'
+              : `The character ${count.nonGsm.slice(0, 3).join(' ')} makes every message shorter. Take it out to fit more.`
+            : 'Cut it down to two messages or fewer.'}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function Bubble({ label, text }: { label: string; text: string }) {
@@ -19,6 +45,7 @@ function Bubble({ label, text }: { label: string; text: string }) {
       >
         {text || 'Your text shows up here as you type.'}
       </p>
+      <Segments text={text} />
     </div>
   );
 }

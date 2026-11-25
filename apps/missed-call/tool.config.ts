@@ -8,6 +8,10 @@ export const tool = {
   /** One line: what it does and what it won't. Replace the placeholder. */
   scope:
     "When an owner misses a call while on a job, the caller gets a text within seconds asking what they need, and the owner sees the reply in one list. It won't be a phone system, answering service, AI receptionist or CRM.",
+  /** Owner-facing landing headline: second person, plain, for the trade. */
+  headline: 'Miss a call, still get the job.',
+  /** Owner-facing landing lede: what happens for them. `scope` is for the README and DoD only. */
+  lede: "When you can't pick up, the caller gets a text from you within seconds asking what they need. Their reply lands in one list on your phone.",
   /** Shown in <title> and link previews. Plain, specific, for the trade, not about AI. */
   description:
     'Miss a call on a job and the caller gets a text back in seconds. Their reply lands in one list.',

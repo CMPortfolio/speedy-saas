@@ -21,10 +21,10 @@ import { supabasePracticeStore } from './practice-store';
 
 const log = logger.child({ feature: 'practice' });
 
-/** What the practice panel shows after an action. */
 /** The page a practice action was started from, so signing in again returns there. */
 export type PracticePage = '/setup' | '/calls';
 
+/** What the practice panel shows after an action. */
 export type PracticeActionResult = { ok: true; note: string } | { ok: false; message: string };
 
 const FAILED: PracticeActionResult = {

@@ -110,7 +110,9 @@ test('an owner with no number practices the whole flow, nothing is sent, and it 
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       data: 'From=%2B12395550123&To=%2B12395550100&CallStatus=ringing&CallSid=CAunsigned',
     });
-    expect(unsigned.status()).toBeGreaterThanOrEqual(400);
+    // 403 is a bad signature. 500 is the no-credentials config failure: this server has no Twilio
+    // credentials by design, so it cannot even build the provider that would check a signature.
+    expect([403, 500]).toContain(unsigned.status());
   }
   expect((await request.get('/api/practice')).status()).toBe(404);
 

@@ -75,3 +75,10 @@ export async function listRescheduleSummaries(db: Db, limit = 20): Promise<Resch
     return { reschedule, counts };
   });
 }
+
+/** Phones this owner's customers texted STOP from. RLS limits rows to the owner. */
+export async function listOptedOutPhones(db: Db): Promise<Set<string>> {
+  const { data, error } = await db.schema('rain_day').from('opt_outs').select('phone');
+  if (error) throw error;
+  return new Set(data.map((r) => r.phone));
+}

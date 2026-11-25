@@ -1,4 +1,4 @@
-import { normalizeUsPhone } from '@speedy/lib/phone';
+import { isUsDomesticPhone, normalizeUsPhone } from '@speedy/lib/phone';
 import { z } from 'zod';
 
 /** What a form's server action hands back to `useActionState`. */
@@ -42,6 +42,11 @@ export const phoneField = z
     const phone = normalizeUsPhone(value);
     if (!phone) {
       ctx.addIssue({ code: 'custom', message: 'Enter a 10-digit US cell number.' });
+      return z.NEVER;
+    }
+    // Texting Canada and the Caribbean is billed as international, so only US area codes.
+    if (!isUsDomesticPhone(phone)) {
+      ctx.addIssue({ code: 'custom', message: 'Rain Day texts US numbers only.' });
       return z.NEVER;
     }
     return phone;

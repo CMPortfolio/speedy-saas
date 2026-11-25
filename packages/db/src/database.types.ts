@@ -184,7 +184,6 @@ export type Database = {
           phone: string;
           service_day: number;
           note: string | null;
-          opted_out: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -195,7 +194,6 @@ export type Database = {
           phone: string;
           service_day: number;
           note?: string | null;
-          opted_out?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -206,7 +204,54 @@ export type Database = {
           phone?: string;
           service_day?: number;
           note?: string | null;
-          opted_out?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      help_replies: {
+        Row: {
+          phone: string;
+          last_sent_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          phone: string;
+          last_sent_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          phone?: string;
+          last_sent_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      opt_outs: {
+        Row: {
+          id: string;
+          owner_id: string;
+          phone: string;
+          opted_out_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          phone: string;
+          opted_out_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          phone?: string;
+          opted_out_at?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -253,6 +298,7 @@ export type Database = {
           customer_name: string;
           body: string;
           status: string;
+          provider: string | null;
           provider_message_id: string | null;
           error_code: string | null;
           sent_at: string | null;
@@ -266,6 +312,7 @@ export type Database = {
           customer_name: string;
           body: string;
           status?: string;
+          provider?: string | null;
           provider_message_id?: string | null;
           error_code?: string | null;
           sent_at?: string | null;
@@ -279,6 +326,7 @@ export type Database = {
           customer_name?: string;
           body?: string;
           status?: string;
+          provider?: string | null;
           provider_message_id?: string | null;
           error_code?: string | null;
           sent_at?: string | null;
@@ -404,6 +452,10 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      claim_help_reply: {
+        Args: { p_phone: string };
+        Returns: boolean;
+      };
       consume_verification_attempt: {
         Args: { p_owner_id: string };
         Returns: number | null;
@@ -429,6 +481,10 @@ export type Database = {
       reserve_verification_send: {
         Args: { p_owner_id: string; p_limit: number; p_window_seconds: number };
         Returns: boolean;
+      };
+      previously_texted: {
+        Args: { p_reschedule_id: string };
+        Returns: string[];
       };
       create_reschedule: {
         Args: {

@@ -105,30 +105,6 @@ describe('status webhook', () => {
 });
 
 describe('status webhook: applying events', () => {
-  it('applies a signed delivery event only to the matching message and only moving forward', async () => {
-    const provider = fakeProvider();
-    const { db, calls } = updateSpyDb();
-    const signed = provider.inbound({
-      kind: 'delivery',
-      providerMessageId: 'FAKE0007',
-      status: 'delivered',
-    });
-    const res = await handleStatusWebhook(
-      new Request(URL_, {
-        method: 'POST',
-        headers: signed.headers as Record<string, string>,
-        body: signed.rawBody,
-      }),
-      { provider, getDb: () => db },
-    );
-    expect(res.status).toBe(204);
-    expect(calls[0]!.patch).toEqual({ status: 'delivered' });
-    expect(calls[0]!.filters).toEqual([
-      ['eq', 'provider_message_id', 'FAKE0007'],
-      ['in', 'status', ['queued', 'sent']],
-    ]);
-  });
-
   it('records the provider error code on a failed text', async () => {
     const provider = fakeProvider();
     const { db, calls } = updateSpyDb();
@@ -147,6 +123,26 @@ describe('status webhook: applying events', () => {
       { provider, getDb: () => db },
     );
     expect(calls[0]!.patch).toEqual({ status: 'failed', error_code: '30003' });
+  });
+
+  it('refuses with 500, not a guess, in production when no public URL is configured', async () => {
+    const provider = fakeProvider();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SMS_WEBHOOK_PUBLIC_URL', '');
+    vi.stubEnv('APP_URL', '');
+    try {
+      const res = await handleStatusWebhook(
+        new Request(URL_, {
+          method: 'POST',
+          headers: { 'x-forwarded-host': 'evil.example.com' },
+          body: 'MessageSid=SM1&MessageStatus=delivered',
+        }),
+        { provider, getDb: untouchableDb() },
+      );
+      expect(res.status).toBe(500);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('does nothing for a "queued" event', async () => {

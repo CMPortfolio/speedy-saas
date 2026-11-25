@@ -27,8 +27,10 @@ export interface ReplyStore {
     forwardCap: number;
   }): Promise<RecordedReply>;
   markForward(replyId: string, status: 'sent' | 'failed'): Promise<void>;
-  /** The business name of whoever texted this number last, for the HELP reply. */
-  businessNameFor(phone: E164): Promise<string | null>;
+  /** The business name to put in a HELP reply, or null when this number is not one of ours. */
+  helpBusinessName(phone: E164): Promise<string | null>;
+  /** Atomic: true when a HELP reply may go to this number now, false if one went in 24 hours. */
+  claimHelp(phone: E164): Promise<boolean>;
 }
 
 const log = logger.child({ feature: 'rain-day-inbound' });
@@ -60,25 +62,38 @@ async function forward(provider: SmsProvider, store: ReplyStore, message: Inboun
   await store.markForward(recorded.replyId, sent.ok ? 'sent' : 'failed');
 }
 
+async function answerHelp(provider: SmsProvider, store: ReplyStore, message: InboundMessage) {
+  // Only people on a customer list get an answer, and only once a day: HELP must not become a
+  // way to make us text any number over and over.
+  const business = await store.helpBusinessName(message.from);
+  if (!business || !(await store.claimHelp(message.from))) return;
+  await reply(provider, message, helpReply(business));
+}
+
 /**
- * Handle one text a customer sent to the business number. STOP and START change opt-out for that
- * number (the carrier sends the confirmation), HELP gets the carrier-required line, and anything
- * else is a reply: filed under the latest rain-day text to them and forwarded to the owner.
- * Call only after the webhook signature was verified (`handleWebhook` does that).
+ * Handle one text a customer sent to the business number. STOP always opts the number out;
+ * START, YES and UNSTOP opt it back in only when it is currently opted out (otherwise a plain
+ * "Yes" is an ordinary reply and is forwarded). HELP gets the carrier-required line for known
+ * customers, once a day. Anything else is a reply: filed under the latest rain-day text to them and
+ * forwarded to the owner. Call only after the webhook signature was verified (`handleWebhook`).
  */
 export async function handleInboundText(
   deps: { provider: SmsProvider; store: ReplyStore },
   message: InboundMessage,
 ): Promise<void> {
+  const { provider, store } = deps;
   const keyword = classifyKeyword(message.body);
-  if (keyword === 'stop' || keyword === 'start') {
-    await applyOptOutKeyword(deps.store.optOuts, message.from, keyword);
+  if (keyword === 'stop') {
+    await applyOptOutKeyword(store.optOuts, message.from, keyword);
+    return;
+  }
+  if (keyword === 'start' && (await store.optOuts.isOptedOut(message.from))) {
+    await applyOptOutKeyword(store.optOuts, message.from, keyword);
     return;
   }
   if (keyword === 'help') {
-    const business = (await deps.store.businessNameFor(message.from)) ?? 'Rain Day';
-    await reply(deps.provider, message, helpReply(business));
+    await answerHelp(provider, store, message);
     return;
   }
-  await forward(deps.provider, deps.store, message);
+  await forward(provider, store, message);
 }

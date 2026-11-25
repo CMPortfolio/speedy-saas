@@ -10,6 +10,7 @@ import { AutoRefresh } from '@/features/rain-day/auto-refresh';
 import { getReschedule, listRescheduleMessages } from '@/features/rain-day/queries';
 import { weekdayName } from '@/lib/weekday';
 import { weekdayOf } from '@/lib/dates';
+import { nowMs } from '@/lib/clock';
 
 const sentAt = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
@@ -27,7 +28,28 @@ const LABELS: Record<string, string> = {
   failed: 'Did not go through',
   replied: 'Replied',
   skipped: 'Skipped (opted out)',
+  skipped_non_us: 'Skipped (not a US number)',
+  not_sent: 'Not sent',
 };
+
+/** After this long a text still "sending" never will, so stop waiting and say so. */
+const STALE_MS = 2 * 60_000;
+
+function statusOf(m: { status: string; error_code: string | null }, stale: boolean): string {
+  if (m.status === 'skipped' && m.error_code === 'non_us') return 'skipped_non_us';
+  if (m.status === 'queued' && stale) return 'not_sent';
+  return m.status;
+}
+
+function describeCounts(counts: Record<string, number>): string {
+  const parts = [
+    counts.texted ? `${counts.texted} texted, each on their own` : null,
+    counts.sending ? `${counts.sending} still sending` : null,
+    counts.problem ? `${counts.problem} did not go through` : null,
+    counts.skipped ? `${counts.skipped} skipped` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `${parts.join('. ')}.` : '';
+}
 
 export default async function RescheduleResultPage({
   params,
@@ -41,8 +63,20 @@ export default async function RescheduleResultPage({
   const reschedule = await getReschedule(supabase, id);
   if (!reschedule) notFound();
   const messages = await listRescheduleMessages(supabase, id);
-  const inFlight = messages.some((m) => m.status === 'queued' || m.status === 'sent');
-  const texted = messages.filter((m) => m.status !== 'skipped').length;
+  const stale = nowMs() - new Date(reschedule.created_at).getTime() > STALE_MS;
+  const rows = messages.map((m) => ({ m, status: statusOf(m, stale) }));
+  const inFlight = !stale && messages.some((m) => m.status === 'queued' || m.status === 'sent');
+  const counts: Record<string, number> = {};
+  for (const { status } of rows) {
+    const key = ['sent', 'delivered', 'replied'].includes(status)
+      ? 'texted'
+      : status === 'queued'
+        ? 'sending'
+        : ['failed', 'not_sent'].includes(status)
+          ? 'problem'
+          : 'skipped';
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
 
   return (
     <section className="flex flex-col gap-6 py-4">
@@ -52,22 +86,20 @@ export default async function RescheduleResultPage({
           {weekdayName(weekdayOf(reschedule.from_date))} moved to{' '}
           {weekdayName(weekdayOf(reschedule.to_date))}
         </h1>
-        <p className="text-sm text-muted">
-          {texted} {texted === 1 ? 'customer was' : 'customers were'} texted, each on their own.
-        </p>
+        <p className="text-sm text-muted">{describeCounts(counts)}</p>
       </header>
       <ul aria-label="Texts sent" className="flex flex-col gap-2">
-        {messages.map((m) => (
+        {rows.map(({ m, status }) => (
           <li
             key={m.id}
-            data-status={m.status}
+            data-status={status}
             className="flex flex-col gap-1 rounded-brand border border-border bg-surface px-4 py-3"
           >
             <div className="flex items-start justify-between gap-3">
               <span className="text-base font-medium text-ink">{m.customer_name}</span>
-              <span className="text-sm font-medium text-ink">{LABELS[m.status] ?? m.status}</span>
+              <span className="text-sm font-medium text-ink">{LABELS[status] ?? status}</span>
             </div>
-            {m.status !== 'skipped' && <p className="text-sm text-muted">{m.body}</p>}
+            {!status.startsWith('skipped') && <p className="text-sm text-muted">{m.body}</p>}
             {m.sent_at && (
               <p className="text-sm text-muted">Sent {sentAt.format(new Date(m.sent_at))}</p>
             )}

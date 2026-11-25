@@ -35,7 +35,7 @@ async function seedSentMessage(owner: TestUser, phone: string, name: string, sen
     [owner.id],
   );
   const m = await pool.query<{ id: string }>(
-    "insert into rain_day.reschedule_messages (reschedule_id, customer_id, customer_name, body, status, provider_message_id, sent_at) values ($1, $2, $3, 'Hi', 'sent', $4, $5) returning id",
+    "insert into rain_day.reschedule_messages (reschedule_id, customer_id, customer_name, body, status, provider, provider_message_id, sent_at) values ($1, $2, $3, 'Hi', 'sent', 'twilio', $4, $5) returning id",
     [r.rows[0]!.id, c.rows[0]!.id, name, `SM${crypto.randomUUID()}`, sentAt],
   );
   return { customerId: c.rows[0]!.id, messageId: m.rows[0]!.id };

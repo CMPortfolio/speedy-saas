@@ -1,4 +1,4 @@
-import type { Database, Json } from '@speedy/db/types';
+import type { Database } from '@speedy/db/types';
 import type { E164 } from '@speedy/lib/phone';
 import { fakeProvider } from '@speedy/sms/fake';
 import { checkPhoneVerification, startPhoneVerification } from '@speedy/sms/verify-phone';
@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { handleInboundText } from '@/features/replies/handle-inbound';
 import { createReplyStore } from '@/features/replies/reply-store';
-import { planMessages } from '@/features/rain-day/plan';
-import { sendQueuedMessages } from '@/features/rain-day/send-queued';
+import { listOptedOutPhones } from '@/features/rain-day/queries';
+import { runSend } from '@/features/rain-day/send-core';
 import { saveVerifiedCell } from '@/features/settings/owner-cell';
 import { createVerifyStore } from '@/features/settings/verify-store';
 
@@ -26,7 +26,8 @@ const BUSINESS = '+12395550100' as E164;
 const OWNER_A_CELL = '+12395550911' as E164;
 
 function freshPhone(): E164 {
-  return `+12397${String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')}` as E164;
+  // Exchange 72x is never reserved, so the number passes the US check.
+  return `+123972${String(Math.floor(Math.random() * 100_000)).padStart(5, '0')}` as E164;
 }
 
 let service: Client;
@@ -48,31 +49,27 @@ async function signedIn(): Promise<{ client: Client; id: string }> {
 
 async function sendRainDay(owner: { client: Client; id: string }) {
   const { data: customers } = await owner.client.schema('rain_day').from('customers').select('*');
-  const plan = planMessages({
-    customers: customers!,
-    selectedIds: customers!.map((c) => c.id),
-    template: 'Hi {first_name}, moving you to {new_day}.',
-    newDay: 'Wednesday',
-  });
-  const { data, error } = await owner.client.schema('rain_day').rpc('create_reschedule', {
-    p_idempotency_key: crypto.randomUUID(),
-    p_from_date: '2026-12-01',
-    p_to_date: '2026-12-02',
-    p_template: 'Hi {first_name}, moving you to {new_day}.',
-    p_messages: plan as unknown as Json,
-  });
-  if (error) throw error;
-  await sendQueuedMessages({
-    db: owner.client,
-    service,
-    ownerId: owner.id,
-    rescheduleId: data[0]!.reschedule_id,
-    customers: customers!,
-    provider,
-    from: BUSINESS,
-    businessName: 'Green Gulf Lawn',
-  });
-  return data[0]!.reschedule_id;
+  const result = await runSend(
+    {
+      db: owner.client,
+      service,
+      customers: customers!,
+      optedOutPhones: await listOptedOutPhones(owner.client),
+      businessName: 'Green Gulf Lawn',
+      provider,
+      from: BUSINESS,
+      today: '2026-11-24',
+    },
+    {
+      idempotencyKey: crypto.randomUUID(),
+      from: '2026-12-01',
+      to: '2026-12-02',
+      template: 'Hi {first_name}, moving you to {new_day}.',
+      customerIds: customers!.map((c) => c.id),
+    },
+  );
+  if (!result.ok) throw new Error(result.message);
+  return result.rescheduleId;
 }
 
 beforeAll(async () => {
@@ -90,6 +87,7 @@ beforeAll(async () => {
   rescheduleA = await sendRainDay(owners.a);
   await sendRainDay(owners.b);
   await saveVerifiedCell(service, owners.a.id, OWNER_A_CELL);
+  await service.from('profiles').update({ business_name: 'Green Gulf Lawn' }).eq('id', owners.a.id);
 });
 
 afterAll(async () => {
@@ -182,12 +180,10 @@ describe.skipIf(!enabled)('replies and forwarding (local Supabase, fake provider
     expect(rpc.error).not.toBeNull();
   });
 
-  it('STOP opts the customer out and a later rain day skips them; START brings them back', async () => {
+  it('STOP opts the customer out and a later rain day skips them; YES brings them back', async () => {
     const store = createReplyStore(service);
     await handleInboundText({ provider, store }, inbound(phones.maria, 'STOP'));
-    const optedOut = async () =>
-      (await owners.a.client.schema('rain_day').from('customers').select('opted_out')).data![0]!
-        .opted_out;
+    const optedOut = async () => (await listOptedOutPhones(owners.a.client)).has(phones.maria);
     expect(await optedOut()).toBe(true);
 
     const before = provider.sent.length;
@@ -200,8 +196,45 @@ describe.skipIf(!enabled)('replies and forwarding (local Supabase, fake provider
       .eq('reschedule_id', second);
     expect(data).toEqual([{ status: 'skipped' }]);
 
-    await handleInboundText({ provider, store }, inbound(phones.maria, 'START'));
+    // The owner cannot undo it: deleting and re-adding the customer leaves the opt-out in place.
+    const customers = owners.a.client.schema('rain_day').from('customers');
+    await customers.delete().eq('phone', phones.maria);
+    await customers.insert({
+      owner_id: owners.a.id,
+      name: 'Maria Lopez',
+      phone: phones.maria,
+      service_day: 2,
+    });
+    expect(await optedOut()).toBe(true);
+
+    await handleInboundText({ provider, store }, inbound(phones.maria, 'YES'));
     expect(await optedOut()).toBe(false);
+  });
+
+  it('a plain "Yes" from someone who is not opted out is forwarded, not swallowed', async () => {
+    await sendRainDay(owners.a);
+    const before = provider.sent.length;
+    await handleInboundText(
+      { provider, store: createReplyStore(service) },
+      inbound(phones.maria, 'Yes'),
+    );
+    const forwarded = provider.sent.slice(before);
+    expect(forwarded).toHaveLength(1);
+    expect(forwarded[0]).toMatchObject({ to: OWNER_A_CELL });
+    expect(forwarded[0]!.body).toContain('"Yes"');
+  });
+
+  it('HELP is answered once a day for a customer and never for a stranger', async () => {
+    const store = createReplyStore(service);
+    const before = provider.sent.length;
+    await handleInboundText({ provider, store }, inbound(phones.maria, 'HELP'));
+    await handleInboundText({ provider, store }, inbound(phones.maria, 'HELP'));
+    await handleInboundText({ provider, store }, inbound(freshPhone(), 'HELP'));
+    const answers = provider.sent.slice(before);
+    expect(answers).toHaveLength(1);
+    expect(answers[0]!.body).toBe(
+      'Green Gulf Lawn: reply STOP to opt out. Msg & data rates may apply.',
+    );
   });
 });
 

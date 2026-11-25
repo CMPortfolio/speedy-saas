@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { appError } from '@speedy/lib/result';
 
@@ -73,5 +73,28 @@ describe('fakeProvider', () => {
     expect(p.sent).toHaveLength(1);
     p.reset();
     expect(p.sent).toHaveLength(0);
+  });
+});
+
+describe('fakeProvider guard', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('refuses to be built when NODE_ENV is production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(() => fakeProvider()).toThrow(/not allowed in production/);
+  });
+
+  it('refuses to be built on Railway, even with ALLOW_FAKE_SMS=1', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('RAILWAY_ENVIRONMENT', 'production');
+    expect(() => fakeProvider()).toThrow(/deployed/);
+    vi.stubEnv('ALLOW_FAKE_SMS', '1');
+    expect(() => fakeProvider()).toThrow(/deployed/);
+  });
+
+  it('can be built for a local production run with ALLOW_FAKE_SMS=1', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ALLOW_FAKE_SMS', '1');
+    expect(fakeProvider().name).toBe('fake');
   });
 });

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-import { getSms, isFakeSms } from '@/config/sms';
-import { env } from '@/config/env';
+import { devSmsGuard } from '@/lib/dev-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,18 +10,15 @@ const bodySchema = z.object({
 });
 
 /**
- * Dev only: post a signed delivery event to our own status webhook, as the provider would.
- * 404 unless SMS_PROVIDER=fake outside production.
+ * Dev only, signed-in only: post a signed delivery event to our own status webhook, as the
+ * provider would.
  */
 export async function POST(request: Request) {
-  if (env.SMS_PROVIDER !== 'fake' || env.NODE_ENV === 'production') {
-    return new Response('Not found', { status: 404 });
-  }
-  const provider = getSms();
-  if (!isFakeSms(provider)) return new Response('Not found', { status: 404 });
+  const guard = await devSmsGuard();
+  if ('response' in guard) return guard.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return new Response('Bad Request', { status: 400 });
-  const signed = provider.inbound({ kind: 'delivery', ...parsed.data });
+  const signed = guard.provider.inbound({ kind: 'delivery', ...parsed.data });
   const res = await fetch(new URL('/api/sms/status', request.url), {
     method: 'POST',
     headers: signed.headers as Record<string, string>,

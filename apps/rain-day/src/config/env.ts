@@ -16,7 +16,12 @@ export const env = createEnv({
       .string()
       .regex(/^\+1[2-9][0-9]{9}$/, 'a US number like +12395550100')
       .optional(),
-    APP_URL: z.url().default('http://localhost:3003'),
+    // Webhook signatures are checked against this URL, so a deployed service must set it.
+    // (Not required while `next build` collects pages, or outside production.)
+    APP_URL:
+      process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build'
+        ? z.url()
+        : z.url().default('http://localhost:3003'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     NODE_ENV: envHelpers.nodeEnv,
   },

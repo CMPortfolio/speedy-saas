@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import type { PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { MIGRATIONS_DIR, connectTestDb, isDenied, randomUsNumber, type TestDb } from './harness';
@@ -26,6 +27,30 @@ const reserve = async (ownerId: string, limit = 3, windowSeconds = 3600) =>
       [ownerId, limit, windowSeconds],
     )
   ).rows[0]!.ok;
+
+function dedupeBlock(): string {
+  const migration = readFileSync(
+    join(MIGRATIONS_DIR, '20261125200500_missed_call_cell_verification.sql'),
+    'utf8',
+  );
+  const block = /do \$\$[\s\S]*?end;\n\$\$;/.exec(migration)?.[0];
+  expect(block).toBeTruthy();
+  return block!;
+}
+
+/** Two lines for one owner (constraint dropped by the caller), the first older. */
+async function twoLines(client: PoolClient, ownerId: string, withNumbers: boolean) {
+  const ids: string[] = [];
+  for (const age of ['3 days', '1 day']) {
+    const r = await client.query<{ id: string }>(
+      `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template, created_at)
+       values ($1, $2, '+12395550101', 'Dup', 'hi', now() - $3::interval) returning id`,
+      [ownerId, withNumbers ? randomUsNumber() : null, age],
+    );
+    ids.push(r.rows[0]!.id);
+  }
+  return ids as [string, string];
+}
 
 beforeAll(async () => {
   db = await connectTestDb();
@@ -170,7 +195,7 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
           const r = await client.query<{ id: string }>(
             `insert into missed_call.lines (owner_id, provider_number, owner_cell, business_name, template, created_at)
              values ($1, $2, '+12395550101', 'Dup ' || $3::text, 'hi', now() - $4::interval) returning id`,
-            [user.id, randomUsNumber(), String(i), age],
+            [user.id, i === 0 ? randomUsNumber() : null, String(i), age],
           );
           ids.push(r.rows[0]!.id);
         }
@@ -199,14 +224,87 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
           'select number, reason from missed_call.blocked_numbers where line_id = $1 order by number',
           [oldest],
         );
+        // On a clash a STOP wins over junk, whichever line it was on.
         expect(blocks.rows).toEqual([
-          { number: '+12395550401', reason: 'junk' },
+          { number: '+12395550401', reason: 'opted_out' },
           { number: '+12395550402', reason: 'junk' },
         ]);
       } finally {
         await client.query('rollback');
         client.release();
       }
+    });
+
+    it('a STOP on the oldest line is not overwritten by a junk block on a newer one', async () => {
+      if (!db) return;
+      const block = dedupeBlock();
+      const user = await db.createUser();
+      const client = await db.pool.connect();
+      try {
+        await client.query('begin');
+        await client.query('alter table missed_call.lines drop constraint lines_owner_id_key');
+        const [oldest, newest] = await twoLines(client, user.id, false);
+        await client.query(
+          `insert into missed_call.blocked_numbers (line_id, number, reason) values
+             ($1, '+12395550411', 'opted_out'), ($2, '+12395550411', 'junk')`,
+          [oldest, newest],
+        );
+        await client.query(block);
+        const r = await client.query(
+          'select reason from missed_call.blocked_numbers where line_id = $1',
+          [oldest],
+        );
+        expect(r.rows).toEqual([{ reason: 'opted_out' }]);
+      } finally {
+        await client.query('rollback');
+        client.release();
+      }
+    });
+
+    it('the migration stops when an owner has two lines that both have a provider number', async () => {
+      if (!db) return;
+      const block = dedupeBlock();
+      const user = await db.createUser();
+      const client = await db.pool.connect();
+      try {
+        await client.query('begin');
+        await client.query('alter table missed_call.lines drop constraint lines_owner_id_key');
+        await twoLines(client, user.id, true);
+        await expect(client.query(block)).rejects.toThrow(
+          /more than one missed_call line with a provider_number/,
+        );
+      } finally {
+        await client.query('rollback');
+        client.release();
+      }
+    });
+
+    it('allows six code texts a day on top of three an hour', async () => {
+      if (!db) return;
+      const o = await owner();
+      const seed = (n: number, age: string) =>
+        db!.pool.query(
+          `insert into missed_call.cell_verification_sends (owner_id, created_at)
+           select $1, now() - $3::interval from generate_series(1, $2::int)`,
+          [o.user.id, n, age],
+        );
+      await seed(5, '3 hours');
+      expect(await reserve(o.user.id)).toBe(true);
+      expect(await reserve(o.user.id)).toBe(false);
+      const older = await owner();
+      await db.pool.query(
+        `insert into missed_call.cell_verification_sends (owner_id, created_at)
+         select $1, now() - interval '23 hours' from generate_series(1, 6)`,
+        [older.user.id],
+      );
+      expect(await reserve(older.user.id)).toBe(false);
+      const outside = await owner();
+      await db.pool.query(
+        `insert into missed_call.cell_verification_sends (owner_id, created_at)
+         select $1, now() - interval '25 hours' from generate_series(1, 6)`,
+        [outside.user.id],
+      );
+      expect(await reserve(outside.user.id)).toBe(true);
     });
 
     it('clear_opt_out waits for the caller lock like the other call and reply functions', async () => {

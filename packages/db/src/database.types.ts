@@ -397,7 +397,12 @@ export type Database = {
       };
       clear_opt_out: { Args: { p_line_id: string; p_number: string }; Returns: undefined };
       reserve_cell_code_send: {
-        Args: { p_owner_id: string; p_limit: number; p_window_seconds: number };
+        Args: {
+          p_owner_id: string;
+          p_limit: number;
+          p_window_seconds: number;
+          p_daily_limit?: number;
+        };
         Returns: boolean;
       };
       consume_cell_attempt: { Args: { p_owner_id: string }; Returns: number | null };

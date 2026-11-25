@@ -5,7 +5,7 @@ import { useActionState, useEffect, useState, useTransition } from 'react';
 import { Button } from '@speedy/ui/button';
 
 import { confirmCellCode, sendCellCode } from './cell-actions';
-import { RESEND_SECONDS, idleCell, type CellState } from './cell-state';
+import { RESEND_SECONDS, afterSend, idleCell, initialCellUi, visibleProblem } from './cell-state';
 
 /** Seconds left before the resend button works again, counting down from the moment a code was sent. */
 function useCountdown(since: number | null): number {
@@ -21,31 +21,23 @@ function useCountdown(since: number | null): number {
   return left;
 }
 
-type Problem = Extract<CellState, { status: 'error' }>;
-
-/** The error to show: a wrong or expired code wins over a failed send. */
-function firstProblem(...states: CellState[]): Problem | null {
-  return states.find((s): s is Problem => s.status === 'error') ?? null;
-}
-
 /**
  * Confirm the cell: "Send code" texts a 6-digit code, the owner types it back. Until it is
  * confirmed, replies show in the list but are not texted to the owner.
  */
 export function CellConfirm({ canSend }: { canSend: boolean }) {
-  const [sendState, setSendState] = useState<CellState>(idleCell);
+  const [ui, setUi] = useState(initialCellUi);
   const [sending, startSend] = useTransition();
   const [confirmState, confirm, confirming] = useActionState(confirmCellCode, idleCell);
-  const sentAt = sendState.status === 'sent' ? sendState.sentAt : null;
-  const wait = useCountdown(sentAt);
-  const codeSent = sentAt !== null;
+  const wait = useCountdown(ui.sentAt);
+  const codeSent = ui.sentAt !== null;
+  const problem = visibleProblem(ui, confirmState);
 
   const send = () =>
     startSend(async () => {
-      setSendState(await sendCellCode());
+      const result = await sendCellCode();
+      setUi((current) => afterSend(current, result, confirmState));
     });
-
-  const problem = firstProblem(confirmState, sendState);
 
   return (
     <section className="space-y-3" aria-labelledby="confirm-cell" data-testid="cell-confirm">
@@ -75,9 +67,9 @@ export function CellConfirm({ canSend }: { canSend: boolean }) {
         </p>
       )}
 
-      {codeSent && sendState.status === 'sent' && (
+      {codeSent && (
         <p role="status" data-testid="code-sent">
-          {sendState.message}
+          {ui.message}
         </p>
       )}
 

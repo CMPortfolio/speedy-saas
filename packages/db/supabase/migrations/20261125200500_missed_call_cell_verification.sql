@@ -46,7 +46,7 @@ create policy "cell_verification_sends: no owner access"
 
 -- Count code texts in the window and record this one, or refuse. Atomic per owner.
 create function missed_call.reserve_cell_code_send(
-  p_owner_id uuid, p_limit integer, p_window_seconds integer
+  p_owner_id uuid, p_limit integer, p_window_seconds integer, p_daily_limit integer default 6
 )
 returns boolean
 language plpgsql
@@ -54,13 +54,18 @@ set search_path = ''
 as $$
 declare
   v_count integer;
+  v_day integer;
 begin
   perform pg_advisory_xact_lock(hashtextextended('missed_call.cell:' || p_owner_id::text, 0));
   delete from missed_call.cell_verification_sends
     where owner_id = p_owner_id and created_at < now() - interval '1 day';
   select count(*) into v_count from missed_call.cell_verification_sends
     where owner_id = p_owner_id and created_at > now() - make_interval(secs => p_window_seconds);
-  if v_count >= p_limit then
+  select count(*) into v_day from missed_call.cell_verification_sends
+    where owner_id = p_owner_id and created_at > now() - interval '1 day';
+  -- An owner can point owner_cell at any US number, so cap what one account can text out: the
+  -- hourly limit the caller asks for, and six a day.
+  if v_count >= p_limit or v_day >= p_daily_limit then
     return false;
   end if;
   insert into missed_call.cell_verification_sends (owner_id) values (p_owner_id);
@@ -97,20 +102,32 @@ begin
 end;
 $$;
 
-revoke execute on function missed_call.reserve_cell_code_send(uuid, integer, integer)
+revoke execute on function missed_call.reserve_cell_code_send(uuid, integer, integer, integer)
   from public, anon, authenticated;
 revoke execute on function missed_call.consume_cell_attempt(uuid) from public, anon, authenticated;
 revoke execute on function missed_call.confirm_owner_cell(uuid, text) from public, anon, authenticated;
-grant execute on function missed_call.reserve_cell_code_send(uuid, integer, integer) to service_role;
+grant execute on function missed_call.reserve_cell_code_send(uuid, integer, integer, integer)
+  to service_role;
 grant execute on function missed_call.consume_cell_attempt(uuid) to service_role;
 grant execute on function missed_call.confirm_owner_cell(uuid, text) to service_role;
 
 -- One line per owner (v1). If an owner already has more than one, keep the oldest: move the newer
--- lines' calls and blocks onto it, then drop the extras. Their provider numbers are released.
+-- lines' calls and blocks onto it, then drop the extras. A STOP is never lost: on a clash an
+-- opted_out block wins over a junk one. Provider numbers are not ours to drop, so if an owner has
+-- more than one line with a number the migration stops and an admin has to decide which to keep.
 do $$
 declare
   dup record;
+  v_owner uuid;
 begin
+  select owner_id into v_owner from missed_call.lines
+    where provider_number is not null
+    group by owner_id having count(*) > 1
+    limit 1;
+  if v_owner is not null then
+    raise exception 'owner % has more than one missed_call line with a provider_number; decide which to keep before applying this migration', v_owner;
+  end if;
+
   for dup in
     select l.id as extra_id,
            (select k.id from missed_call.lines k
@@ -123,7 +140,8 @@ begin
       insert into missed_call.blocked_numbers (line_id, number, reason)
         select dup.keep_id, b.number, b.reason from missed_call.blocked_numbers b
         where b.line_id = dup.extra_id
-        on conflict (line_id, number) do nothing;
+        on conflict (line_id, number) do update set reason = 'opted_out'
+          where excluded.reason = 'opted_out';
       delete from missed_call.lines where id = dup.extra_id;
     end if;
   end loop;

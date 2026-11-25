@@ -56,7 +56,7 @@ const MESSAGES = {
     "Your missed-call number isn't ready yet, so we can't text you a code. It shows up on this page when it is.",
   already_confirmed: 'Your cell is already confirmed.',
   bad_cell: 'Fix your cell number above and save it first.',
-  rate_limited: 'Too many codes this hour. Try again in an hour.',
+  rate_limited: 'Too many codes sent for now. Try again later.',
   invalid_number: 'That number cannot receive texts. Check it and save it again.',
   failed: 'We could not send the code just now. Try again in a minute.',
   expired: 'That code expired. Send a new one.',

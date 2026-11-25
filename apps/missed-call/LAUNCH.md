@@ -148,23 +148,37 @@ When unanswered, in their phone settings, or to call their carrier.
 `src/config/carrier-codes.ts`. `tests/unit/setup.test.ts` pins the current codes and the "only
 Verizon verified" state, so update it with the data file.
 
-## 5. Owner cell confirmation (not wired yet)
+## 5. Owner cell confirmation
 
-Reply forwarding is off for a line until `missed_call.lines.owner_cell_verified` is true (default
-false, and owners cannot set it themselves). The one-time-code step plugs in through
-`OwnerCellVerifier` in `src/features/setup/verify-cell.ts`; until the shared helper lands, replies
-are saved and shown in the list but not texted to the owner. Do not launch to owners without it, or
-they will not get their leads on their cell.
+Reply forwarding is off for a line until the owner confirms their cell on `/setup`: "Send code" texts
+a 6-digit code (10 minutes, five tries, three codes an hour) from the line's own number, and the
+owner types it back. `missed_call.lines.owner_cell_verified` is set by the server only, after
+re-checking that the cell on the line is still the one the code went to; changing the cell puts it
+back to unconfirmed. Until then replies are saved and listed but not texted to the owner.
+
+The code is texted from the line's missed-call number, so an owner cannot confirm until an admin has
+set `provider_number` (section 3). That text also needs the number's texting registration to be
+approved, like every other text.
+
+## Notes
+
+- Times on the setup page and the quiet hours are **Eastern only** for v1.
+- **Never set `ALLOW_FAKE_SMS` on any deployed host.** It exists only so a local production build can
+  run the end-to-end test with the fake provider; the app refuses it on Railway and for any
+  `APP_URL` that is not localhost, but do not rely on that.
+- The `/api/dev/sms/sent` route answers 404 unless the fake provider is running, so in production
+  it is always a 404.
+- Each owner has one line (v1): the database enforces `unique (owner_id)`.
 
 ## 6. Smoke test after the first deploy
 
 1. `https://missed-call.naplesaiagency.com/` loads (this is also the Railway health check).
 2. Sign in, complete `/setup`, and confirm the forwarding codes appear once you have set a
-   provider number.
+   provider number. Send and enter the confirmation code to confirm your own cell.
 3. Call the Twilio number from a phone you own and let it ring out. You hear the short greeting,
    get the text within seconds, and the call is in `/calls`.
-4. Reply to the text. The reply shows in `/calls` as Replied (and is texted to the owner's cell once
-   the cell is confirmed).
+4. Reply to the text. The reply shows in `/calls` as Replied (and is texted to the owner's cell, because the
+   cell is confirmed).
 5. Mark it Junk, call again, and confirm no second text.
 6. Check the Railway logs: no `webhook rejected` or `SMS_WEBHOOK_PUBLIC_URL` errors.
 

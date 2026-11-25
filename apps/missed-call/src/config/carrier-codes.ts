@@ -29,7 +29,7 @@ export const CARRIERS: readonly Carrier[] = [
     cancel: '*73',
     verified: true,
     sourceUrl: 'https://www.verizon.com/support/how-to-use-call-forwarding',
-    note: 'Dial it from your phone. It will not work while you are roaming.',
+    note: 'Dial it from your phone. It will not work while you are roaming, and forwarded calls are billed as answered.',
   },
   {
     id: 'tmobile',

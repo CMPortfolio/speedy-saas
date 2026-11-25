@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { CARRIERS, dialDigits } from '../../src/config/carrier-codes';
 import { formatClock, toOpenHours, toQuietHours } from '../../src/features/setup/hours';
 import { defaultTemplate, parseSetup } from '../../src/features/setup/schema';
-import { getVerifier } from '../../src/features/setup/verify-cell';
 
 const form = (over: Record<string, string> = {}) => {
   const f = new FormData();
@@ -117,15 +116,5 @@ describe('carrier codes', () => {
 
   it('has a source URL for every carrier', () => {
     for (const c of CARRIERS) expect(c.sourceUrl).toMatch(/^https:\/\//);
-  });
-});
-
-describe('owner cell verifier seam', () => {
-  it('is unavailable until the shared helper is wired in', async () => {
-    const v = getVerifier();
-    const start = await v.start({ lineId: 'l1' });
-    const confirm = await v.confirm({ lineId: 'l1', code: '123456' });
-    expect(!start.ok && start.error.code).toBe('verification_unavailable');
-    expect(!confirm.ok && confirm.error.code).toBe('verification_unavailable');
   });
 });

@@ -176,6 +176,13 @@ To exercise a real Twilio webhook locally, run `ngrok http 3001`, set `SMS_WEBHO
 to the ngrok origin and paste the ngrok URLs into a trial number. Use a Twilio test account; never
 real customer numbers from development (CLAUDE.md).
 
+## Segment count (`@speedy/sms/segments`)
+
+`countSegments(text)` says how many text segments a message costs: GSM-7 (160 characters, 153 per
+part when split) or UCS-2 when any character is outside the GSM alphabet (70 and 67). One curly
+quote or emoji moves the whole message to UCS-2. Use it for a live preview; carriers bill and
+filter by segment.
+
 ## Out of scope here
 
 Buying numbers, A2P 10DLC registration, production credentials and a shared opt-out table in

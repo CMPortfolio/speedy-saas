@@ -5,6 +5,7 @@ import { createServerSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { formatUsPhone } from '@speedy/lib/phone';
 
+import { CellConfirm } from '@/features/setup/cell-confirm';
 import { ForwardingGuide } from '@/features/setup/forwarding-guide';
 import { getMyLine } from '@/features/setup/line-queries';
 import { SetupForm } from '@/features/setup/setup-form';
@@ -40,10 +41,9 @@ export default async function SetupPage() {
               and then you can turn on forwarding.
             </p>
           )}
-          {!line.ownerCellVerified && (
-            <p className="text-muted" data-testid="cell-unconfirmed">
-              Your cell isn&apos;t confirmed yet. Replies show up in your list, but they won&apos;t
-              be texted to you until it is.
+          {line.ownerCellVerified && (
+            <p data-testid="cell-confirmed">
+              Your cell is confirmed. Replies get texted to {formatUsPhone(line.ownerCell)}.
             </p>
           )}
           <Link href="/calls" className="inline-flex min-h-tap items-center underline">
@@ -51,6 +51,8 @@ export default async function SetupPage() {
           </Link>
         </section>
       )}
+
+      {line && !line.ownerCellVerified && <CellConfirm canSend={Boolean(line.providerNumber)} />}
 
       {line?.providerNumber && <ForwardingGuide providerNumber={line.providerNumber} />}
     </section>

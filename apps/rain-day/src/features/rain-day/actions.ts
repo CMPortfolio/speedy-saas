@@ -13,8 +13,8 @@ import {
   senderNumberOf,
 } from '@/features/settings/owner-cell';
 import { todayInNewYork, weekdayOf } from '@/lib/dates';
+import { codeOf } from '@/lib/error-code';
 
-import { codeOf } from './dispatch';
 import { listCustomersForDay, listOptedOutPhones } from './queries';
 import { sendInputSchema, type SendInput } from './schema';
 import { runSend, SEND_FAILED, type SendContext, type SendResult } from './send-core';
@@ -42,6 +42,7 @@ async function prepare(userId: string, request: SendInput): Promise<Prepared> {
     ctx: {
       db,
       service: createServiceSupabase(),
+      ownerId: userId,
       customers,
       optedOutPhones,
       businessName,

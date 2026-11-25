@@ -8,7 +8,7 @@ import { checkPhoneVerification, startPhoneVerification } from '@speedy/sms/veri
 import { revalidatePath } from 'next/cache';
 
 import { getSms, devDefaultSender } from '@/config/sms';
-import { codeOf } from '@/features/rain-day/dispatch';
+import { codeOf } from '@/lib/error-code';
 
 import {
   getOwnerSettings,

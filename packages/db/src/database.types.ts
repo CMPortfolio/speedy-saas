@@ -211,18 +211,21 @@ export type Database = {
       };
       help_replies: {
         Row: {
+          owner_id: string;
           phone: string;
           last_sent_at: string;
           created_at: string;
           updated_at: string;
         };
         Insert: {
+          owner_id: string;
           phone: string;
           last_sent_at?: string;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
+          owner_id?: string;
           phone?: string;
           last_sent_at?: string;
           created_at?: string;
@@ -457,7 +460,7 @@ export type Database = {
     Functions: {
       contacted_customers: { Args: Record<PropertyKey, never>; Returns: string[] };
       claim_help_reply: {
-        Args: { p_phone: string };
+        Args: { p_owner_id: string; p_phone: string };
         Returns: boolean;
       };
       consume_verification_attempt: {

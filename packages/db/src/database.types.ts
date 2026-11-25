@@ -587,6 +587,386 @@ export type Database = {
       [_ in never]: never;
     };
   };
+  rain_day: {
+    Tables: {
+      customers: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          note: string | null;
+          owner_id: string;
+          phone: string;
+          service_day: number;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          note?: string | null;
+          owner_id: string;
+          phone: string;
+          service_day: number;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          note?: string | null;
+          owner_id?: string;
+          phone?: string;
+          service_day?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      help_replies: {
+        Row: {
+          created_at: string;
+          last_sent_at: string;
+          owner_id: string;
+          phone: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          last_sent_at?: string;
+          owner_id: string;
+          phone: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          last_sent_at?: string;
+          owner_id?: string;
+          phone?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      opt_outs: {
+        Row: {
+          created_at: string;
+          id: string;
+          opted_out_at: string;
+          owner_id: string;
+          phone: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          opted_out_at?: string;
+          owner_id: string;
+          phone: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          opted_out_at?: string;
+          owner_id?: string;
+          phone?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      owner_settings: {
+        Row: {
+          created_at: string;
+          owner_cell: string | null;
+          owner_cell_verified_at: string | null;
+          owner_id: string;
+          sender_messaging_service_sid: string | null;
+          sender_number: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          owner_cell?: string | null;
+          owner_cell_verified_at?: string | null;
+          owner_id: string;
+          sender_messaging_service_sid?: string | null;
+          sender_number?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          owner_cell?: string | null;
+          owner_cell_verified_at?: string | null;
+          owner_id?: string;
+          sender_messaging_service_sid?: string | null;
+          sender_number?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      phone_verifications: {
+        Row: {
+          attempts: number;
+          code_hash: string;
+          created_at: string;
+          expires_at: string;
+          owner_id: string;
+          phone: string;
+          salt: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number;
+          code_hash: string;
+          created_at?: string;
+          expires_at: string;
+          owner_id: string;
+          phone: string;
+          salt: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          code_hash?: string;
+          created_at?: string;
+          expires_at?: string;
+          owner_id?: string;
+          phone?: string;
+          salt?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      replies: {
+        Row: {
+          body: string;
+          created_at: string;
+          customer_id: string | null;
+          customer_name: string;
+          forward_status: string;
+          id: string;
+          owner_id: string;
+          provider_message_id: string | null;
+          reschedule_message_id: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name: string;
+          forward_status?: string;
+          id?: string;
+          owner_id: string;
+          provider_message_id?: string | null;
+          reschedule_message_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          forward_status?: string;
+          id?: string;
+          owner_id?: string;
+          provider_message_id?: string | null;
+          reschedule_message_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'replies_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'replies_reschedule_message_id_fkey';
+            columns: ['reschedule_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'reschedule_messages';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      reschedule_messages: {
+        Row: {
+          body: string;
+          created_at: string;
+          customer_id: string | null;
+          customer_name: string;
+          error_code: string | null;
+          id: string;
+          provider: string | null;
+          provider_message_id: string | null;
+          reschedule_id: string;
+          sent_at: string | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name: string;
+          error_code?: string | null;
+          id?: string;
+          provider?: string | null;
+          provider_message_id?: string | null;
+          reschedule_id: string;
+          sent_at?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          error_code?: string | null;
+          id?: string;
+          provider?: string | null;
+          provider_message_id?: string | null;
+          reschedule_id?: string;
+          sent_at?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'reschedule_messages_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'reschedule_messages_reschedule_id_fkey';
+            columns: ['reschedule_id'];
+            isOneToOne: false;
+            referencedRelation: 'reschedules';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      reschedules: {
+        Row: {
+          created_at: string;
+          from_date: string;
+          id: string;
+          idempotency_key: string;
+          owner_id: string;
+          template: string;
+          to_date: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          from_date: string;
+          id?: string;
+          idempotency_key: string;
+          owner_id: string;
+          template: string;
+          to_date: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          from_date?: string;
+          id?: string;
+          idempotency_key?: string;
+          owner_id?: string;
+          template?: string;
+          to_date?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      verification_sends: {
+        Row: {
+          created_at: string;
+          id: string;
+          owner_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          owner_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          owner_id?: string;
+        };
+        Relationships: [];
+      };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      claim_help_reply: { Args: { p_owner_id: string; p_phone: string }; Returns: boolean };
+      consume_verification_attempt: { Args: { p_owner_id: string }; Returns: number };
+      contacted_customers: { Args: Record<PropertyKey, never>; Returns: string[] };
+      create_reschedule: {
+        Args: {
+          p_from_date: string;
+          p_idempotency_key: string;
+          p_messages: Json;
+          p_template: string;
+          p_to_date: string;
+        };
+        Returns: {
+          created: boolean;
+          reschedule_id: string;
+        }[];
+      };
+      previously_texted: { Args: { p_reschedule_id: string }; Returns: string[] };
+      record_reply: {
+        Args: {
+          p_body: string;
+          p_forward_cap: number;
+          p_from: string;
+          p_owner_id: string;
+          p_provider_message_id: string;
+        };
+        Returns: {
+          customer_name: string;
+          customer_phone: string;
+          duplicate: boolean;
+          forward: boolean;
+          matched: boolean;
+          owner_cell: string;
+          reply_id: string;
+        }[];
+      };
+      reserve_verification_send: {
+        Args: {
+          p_daily_limit: number;
+          p_limit: number;
+          p_owner_id: string;
+          p_window_seconds: number;
+        };
+        Returns: boolean;
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
 };
 
 type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>;
@@ -706,5 +1086,8 @@ export const Constants = {
     Enums: {
       membership_role: ['owner', 'member'],
     },
+  },
+  rain_day: {
+    Enums: {},
   },
 } as const;

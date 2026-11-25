@@ -1,0 +1,157 @@
+import type { APIRequestContext, Page } from '@playwright/test';
+
+/**
+ * Helpers for the one-moment test. It signs in the way a magic link would (Supabase admin API
+ * makes the link; the app's own /auth/callback turns it into a session) and talks to the
+ * app's webhooks with the fake provider's public test signature. Needs the local Supabase stack:
+ * NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.
+ */
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const hasSupabase = Boolean(supabaseUrl && serviceKey);
+
+const FAKE_SIGNATURE_HEADER = 'x-speedy-fake-signature';
+const FAKE_SIGNATURE = 'fake-signature-ok';
+
+function adminHeaders() {
+  return {
+    apikey: serviceKey ?? '',
+    Authorization: `Bearer ${serviceKey ?? ''}`,
+    'content-type': 'application/json',
+  };
+}
+
+export interface TestOwner {
+  id: string;
+  email: string;
+  tokenHash: string;
+  /** The owner's own texting number once an admin has set it (see assignSenderNumber). */
+  senderNumber?: string;
+  /** The owner's own Messaging Service, set together with the number. */
+  messagingServiceSid?: string;
+}
+
+/** A new confirmed user and a one-time sign-in token for them. */
+export async function createOwner(request: APIRequestContext): Promise<TestOwner> {
+  const email = `${crypto.randomUUID()}@resend.dev`;
+  const created = await request.post(`${supabaseUrl}/auth/v1/admin/users`, {
+    headers: adminHeaders(),
+    data: { email, email_confirm: true },
+  });
+  if (!created.ok()) throw new Error(`could not create the test owner: ${created.status()}`);
+  const { id } = (await created.json()) as { id: string };
+  const link = await request.post(`${supabaseUrl}/auth/v1/admin/generate_link`, {
+    headers: adminHeaders(),
+    data: { type: 'magiclink', email },
+  });
+  if (!link.ok()) throw new Error(`could not make a sign-in link: ${link.status()}`);
+  const body = (await link.json()) as { hashed_token: string };
+  return { id, email, tokenHash: body.hashed_token };
+}
+
+export async function deleteOwner(request: APIRequestContext, id: string): Promise<void> {
+  await request.delete(`${supabaseUrl}/auth/v1/admin/users/${id}`, { headers: adminHeaders() });
+}
+
+/**
+ * Stands in for the admin who gives an owner their own texting number and Messaging Service:
+ * writes rain_day.owner_settings.sender_number and sender_messaging_service_sid with the service
+ * role (owners cannot write them).
+ * The number is random per call so runs never collide on the unique index.
+ */
+export async function assignSenderNumber(
+  request: APIRequestContext,
+  owner: TestOwner,
+): Promise<string> {
+  const number = `+123974${String(Math.floor(Math.random() * 100_000)).padStart(5, '0')}`;
+  // Like the number, unique per run (one service per owner).
+  const sid = `MG${crypto.randomUUID().replaceAll('-', '')}`;
+  const res = await request.post(`${supabaseUrl}/rest/v1/owner_settings?on_conflict=owner_id`, {
+    headers: {
+      ...adminHeaders(),
+      'content-profile': 'rain_day',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    data: { owner_id: owner.id, sender_number: number, sender_messaging_service_sid: sid },
+  });
+  if (!res.ok()) throw new Error(`could not set the sender number: ${res.status()}`);
+  owner.senderNumber = number;
+  owner.messagingServiceSid = sid;
+  return number;
+}
+
+/** Open the app's own callback with the token, as clicking the emailed link would. */
+export async function signIn(page: Page, owner: TestOwner, next = '/settings'): Promise<void> {
+  await page.goto(
+    `/auth/callback?token_hash=${owner.tokenHash}&type=magiclink&next=${encodeURIComponent(next)}`,
+  );
+}
+
+const signed = {
+  headers: { [FAKE_SIGNATURE_HEADER]: FAKE_SIGNATURE, 'content-type': 'application/json' },
+};
+
+/** A customer texts an owner's number. Goes through the real signed inbound webhook. */
+export async function customerTexts(
+  request: APIRequestContext,
+  from: string,
+  to: string,
+  body: string,
+): Promise<number> {
+  const res = await request.post('/api/sms/inbound', {
+    ...signed,
+    data: {
+      kind: 'inbound',
+      from,
+      to,
+      body,
+      providerMessageId: `FAKE-IN-${crypto.randomUUID()}`,
+    },
+  });
+  return res.status();
+}
+
+/**
+ * The provider ids of the texts this owner's rain days have sent, read with the service role.
+ * The fake provider's ids (FAKE0001...) are per server process, so the test asks for the real ones
+ * instead of guessing a range.
+ */
+export async function sentProviderIds(
+  request: APIRequestContext,
+  owner: TestOwner,
+): Promise<string[]> {
+  const query =
+    'select=provider_message_id,reschedules!inner(owner_id)' +
+    `&reschedules.owner_id=eq.${owner.id}&provider_message_id=not.is.null`;
+  const res = await request.get(`${supabaseUrl}/rest/v1/reschedule_messages?${query}`, {
+    headers: { ...adminHeaders(), 'accept-profile': 'rain_day' },
+  });
+  if (!res.ok()) throw new Error(`could not read the sent ids: ${res.status()}`);
+  const rows = (await res.json()) as { provider_message_id: string }[];
+  return rows.map((r) => r.provider_message_id);
+}
+
+/** The provider reports a text delivered, through the real signed status webhook. */
+export async function reportDelivered(
+  request: APIRequestContext,
+  providerMessageId: string,
+): Promise<number> {
+  const res = await request.post('/api/sms/status', {
+    ...signed,
+    data: { kind: 'delivery', providerMessageId, status: 'delivered' },
+  });
+  return res.status();
+}
+
+/** Next date (on or after today in New York) falling on this weekday, 0 = Sunday. */
+export function nextWeekday(weekday: number, now = new Date()): string {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const date = new Date(`${today}T00:00:00Z`);
+  while (date.getUTCDay() !== weekday) date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}

@@ -7,19 +7,30 @@ house preset in `@speedy/config/tailwind`.
 
 ## Exports
 
-| Import                           | What it is                                                              |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| `@speedy/ui/cn`                  | `cn(...classes)`: clsx + tailwind-merge                                 |
-| `@speedy/ui/button`              | `Button` (primary, secondary, ghost, danger; sm, md, lg; `loading`)     |
-| `@speedy/ui/input`               | `Input` with a required label, optional hint and error (client)         |
-| `@speedy/ui/modal`               | `Modal` on a native `<dialog>` (client)                                 |
-| `@speedy/ui/empty-state`         | `EmptyState` with icon, title, description and action slots             |
-| `@speedy/ui/shell`               | `AppShell`: header, centred `main`, footer slot                         |
-| `@speedy/ui/naples-footer`       | `NaplesFooter`: `MoreFromNaplesAI` + "Built by Naples AI" + small print |
-| `@speedy/ui/more-from-naples-ai` | `MoreFromNaplesAI`: up to 3 other live tools and the website link       |
+| Import                           | What it is                                                                                                |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `@speedy/ui/cn`                  | `cn(...classes)`: clsx + tailwind-merge                                                                   |
+| `@speedy/ui/button`              | `Button` (primary, secondary, ghost, danger; sm, md, lg; `loading`)                                       |
+| `@speedy/ui/input`               | `Input` with a required label, optional hint and error (client)                                           |
+| `@speedy/ui/modal`               | `Modal` on a native `<dialog>` (client)                                                                   |
+| `@speedy/ui/empty-state`         | `EmptyState` with icon, title, description and action slots                                               |
+| `@speedy/ui/shell`               | `AppShell`: header, centred `main`, footer slot                                                           |
+| `@speedy/ui/naples-footer`       | `NaplesFooter`: `MoreFromNaplesAI` + "Built by Naples AI" + small print                                   |
+| `@speedy/ui/more-from-naples-ai` | `MoreFromNaplesAI`: up to 3 other live tools and the website link                                         |
+| `@speedy/ui/customer-list`       | `CustomerList<T>`: phone-width cards with name/phone/day/note, Edit and Delete, empty state               |
+| `@speedy/ui/csv-import`          | `CsvImport`: paste box + CSV file input, preview of imported and skipped rows, one Import button (client) |
+| `@speedy/ui/csv`                 | Pure parsing: `parseDelimited`, `detectColumns`, `mapRows`, `previewImport`. No React                     |
 
 No barrel file. Import each component from its own path (CLAUDE.md rule 4). Everything except
-`Input` and `Modal` is a server component; those two use hooks and carry `'use client'`.
+`Input`, `Modal` and `CsvImport` is a server component; those three use hooks and carry
+`'use client'`. `CustomerList` has no hooks, but its `onEdit`/`onDelete` callbacks have to come
+from a client component.
+
+`CsvImport` and the `csv` module know nothing about any one tool: the caller passes
+`validators` (`phone(raw)` returns the stored form or null, `day(raw)` returns the parsed day or
+null, `existingPhones` is the set already in the list) and formatters for the preview. Skip
+reasons are plain copy: "Bad phone number", "Same number appears above", "Already in your list",
+"No service day", "Unknown day", "No name".
 
 ## Using it in an app
 

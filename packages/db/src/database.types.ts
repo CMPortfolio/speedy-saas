@@ -741,6 +741,153 @@ export type Database = {
         };
         Relationships: [];
       };
+      practice_actions: {
+        Row: {
+          created_at: string;
+          id: string;
+          owner_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          owner_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          owner_id?: string;
+        };
+        Relationships: [];
+      };
+      practice_messages: {
+        Row: {
+          body: string;
+          created_at: string;
+          customer_id: string | null;
+          customer_name: string;
+          direction: string;
+          error_code: string | null;
+          id: string;
+          kind: string;
+          owner_id: string;
+          practice_reschedule_id: string;
+          seq: number;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name: string;
+          direction: string;
+          error_code?: string | null;
+          id?: string;
+          kind?: string;
+          owner_id: string;
+          practice_reschedule_id: string;
+          seq?: never;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          direction?: string;
+          error_code?: string | null;
+          id?: string;
+          kind?: string;
+          owner_id?: string;
+          practice_reschedule_id?: string;
+          seq?: never;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'practice_messages_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'practice_messages_practice_reschedule_id_fkey';
+            columns: ['practice_reschedule_id'];
+            isOneToOne: false;
+            referencedRelation: 'practice_reschedules';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      practice_opt_outs: {
+        Row: {
+          created_at: string;
+          customer_id: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          customer_id: string;
+          owner_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          customer_id?: string;
+          owner_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'practice_opt_outs_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      practice_reschedules: {
+        Row: {
+          created_at: string;
+          from_date: string;
+          id: string;
+          idempotency_key: string;
+          owner_id: string;
+          template: string;
+          to_date: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          from_date: string;
+          id?: string;
+          idempotency_key: string;
+          owner_id: string;
+          template: string;
+          to_date: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          from_date?: string;
+          id?: string;
+          idempotency_key?: string;
+          owner_id?: string;
+          template?: string;
+          to_date?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       replies: {
         Row: {
           body: string;
@@ -915,9 +1062,34 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_practice_rows: {
+        Args: {
+          p_customer_id: string;
+          p_customer_name: string;
+          p_mark_replied: boolean;
+          p_max_messages: number;
+          p_owner_id: string;
+          p_reschedule_id: string;
+          p_rows: Json;
+        };
+        Returns: number;
+      };
       claim_help_reply: { Args: { p_owner_id: string; p_phone: string }; Returns: boolean };
+      clear_practice: { Args: { p_owner_id: string }; Returns: number };
       consume_verification_attempt: { Args: { p_owner_id: string }; Returns: number };
       contacted_customers: { Args: Record<PropertyKey, never>; Returns: string[] };
+      create_practice_reschedule: {
+        Args: {
+          p_from_date: string;
+          p_idempotency_key: string;
+          p_max_messages: number;
+          p_messages: Json;
+          p_owner_id: string;
+          p_template: string;
+          p_to_date: string;
+        };
+        Returns: { created: boolean; reschedule_id: string }[];
+      };
       create_reschedule: {
         Args: {
           p_from_date: string;
@@ -949,6 +1121,10 @@ export type Database = {
           owner_cell: string;
           reply_id: string;
         }[];
+      };
+      reserve_practice_action: {
+        Args: { p_limit: number; p_owner_id: string; p_window_seconds: number };
+        Returns: boolean;
       };
       reserve_verification_send: {
         Args: {

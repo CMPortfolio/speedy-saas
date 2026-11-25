@@ -8,7 +8,8 @@ import { ButtonLink } from '@/components/button-link';
 import { skipReason } from '@/features/rain-day/plan';
 import { env } from '@/config/env';
 import { getOwnerSettings } from '@/features/settings/owner-cell';
-import { resolveSender } from '@/features/settings/sender';
+import { isPracticeOwner } from '@/features/practice/gate';
+import { listPracticeOptedOutIds } from '@/features/practice/queries';
 import {
   listContactedCustomerIds,
   listCustomersForDay,
@@ -38,6 +39,11 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
     getOwnerSettings(supabase),
   ]);
 
+  // Decided here on the server from the owner's own settings, never from the URL.
+  const practice = isPracticeOwner(settings, env.SMS_PROVIDER);
+  // A STOP typed on the practice phone skips that customer in practice, and only there.
+  const practiceStopped = practice ? await listPracticeOptedOutIds(supabase) : new Set<string>();
+
   return (
     <section className="flex flex-col gap-6 py-4">
       <header className="flex flex-col gap-1">
@@ -54,6 +60,11 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
         <ButtonLink href="/rain-day/history" variant="secondary">
           Past rain days
         </ButtonLink>
+        {practice && (
+          <ButtonLink href="/rain-day/practice" variant="secondary" className="col-span-2">
+            Practice phone
+          </ButtonLink>
+        )}
       </nav>
       <RainDayForm
         from={from}
@@ -64,12 +75,12 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
           id: c.id,
           name: c.name,
           phone: c.phone,
-          skip: skipReason(c, optedOut),
+          skip: skipReason(c, optedOut) ?? (practiceStopped.has(c.id) ? 'opted_out' : null),
           firstContact: !contacted.has(c.id),
         }))}
         initialTemplate={defaultTemplate(profile?.business_name ?? '')}
         businessName={profile?.business_name?.trim() ?? ''}
-        senderReady={resolveSender(settings, env.SMS_PROVIDER) !== null}
+        senderReady={!practice}
       />
     </section>
   );

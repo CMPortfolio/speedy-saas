@@ -8,14 +8,15 @@ import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
 import { addDays, describeNewDay } from '@/lib/dates';
-import { NO_SENDER_MESSAGE } from '@/features/settings/owner-cell';
 import { weekdayName } from '@/lib/weekday';
 
-import { sendRainDay } from './actions';
 import { ConfirmSendModal, texts } from './confirm-send-modal';
+import { PracticeBanner } from '@/features/practice/practice-banner';
+
 import { DatePickers } from './date-pickers';
 import { CustomerRow, type FormCustomer } from './customer-row';
 import { MessageField } from './message-field';
+import { submitRainDay } from './submit';
 
 export interface RainDayFormProps {
   from: string;
@@ -55,7 +56,9 @@ export function RainDayForm({
   const skipped = customers.filter((c) => c.skip).length;
   const dateError =
     from === to ? 'Pick a different day.' : to < today ? 'Pick today or later.' : undefined;
-  const canSend = senderReady && sendable.length > 0 && template.trim() !== '' && !dateError;
+  // No real texting number yet: practice mode. The server decides this again for every send.
+  const practice = !senderReady;
+  const canSend = sendable.length > 0 && template.trim() !== '' && !dateError;
 
   function go(nextFrom: string, nextTo: string) {
     startNavigation(() => router.replace(`/rain-day?from=${nextFrom}&to=${nextTo}`));
@@ -72,7 +75,7 @@ export function RainDayForm({
   function send() {
     setError(null);
     startSending(async () => {
-      const result = await sendRainDay({
+      const result = await submitRainDay(practice, {
         idempotencyKey,
         from,
         to,
@@ -81,14 +84,14 @@ export function RainDayForm({
         customerIds: customers.filter((c) => c.skip || !unticked.has(c.id)).map((c) => c.id),
       });
       setConfirming(false);
-      // Also when the rain day was saved but the texts did not start: the page shows who was not texted.
-      if (result.rescheduleId) router.push(`/rain-day/${result.rescheduleId}`);
-      else setError(result.ok ? null : result.message);
+      if (result.href) router.push(result.href);
+      else setError(result.error ?? null);
     });
   }
 
   return (
     <div className="flex flex-col gap-6">
+      {practice && <PracticeBanner />}
       <DatePickers
         from={from}
         to={to}
@@ -128,18 +131,15 @@ export function RainDayForm({
             </ul>
           </section>
           <MessageField value={template} onChange={setTemplate} />
-          {!senderReady && (
-            <p role="status" className="text-sm text-ink">
-              {NO_SENDER_MESSAGE}
-            </p>
-          )}
           {error && (
             <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
           <Button size="lg" fullWidth disabled={!canSend} onClick={() => setConfirming(true)}>
-            {`Send ${texts(sendable.length)}`}
+            {practice
+              ? `Send as practice (${texts(sendable.length)})`
+              : `Send ${texts(sendable.length)}`}
           </Button>
         </>
       )}
@@ -150,6 +150,7 @@ export function RainDayForm({
         count={sendable.length}
         skipped={skipped}
         newDay={newDay}
+        practice={practice}
         onCancel={() => setConfirming(false)}
         onConfirm={send}
       />

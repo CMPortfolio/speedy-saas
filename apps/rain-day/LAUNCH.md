@@ -35,7 +35,7 @@ certificate issued. HTTPS must work before you give Twilio the webhook URLs.
    `20261125005215_rain_day_init.sql`, `20261125010100_rain_day_customers.sql`,
    `20261125300000_rain_day_reschedules.sql`, `20261125300050_rain_day_send_hardening.sql`,
    `20261125300100_rain_day_replies.sql`, `20261125300150_rain_day_help_throttle.sql`,
-   `20261125300200_rain_day_per_owner_numbers.sql`, `20261125300250_rain_day_help_per_owner.sql`, `20261125300300_rain_day_messaging_service.sql`.
+   `20261125300200_rain_day_per_owner_numbers.sql`, `20261125300250_rain_day_help_per_owner.sql`, `20261125300300_rain_day_messaging_service.sql`, `20261126300000_rain_day_practice.sql`.
    `20261125300050` moves opt-outs out of `customers.opted_out` into `rain_day.opt_outs` and drops
    that column; it copies existing opt-outs first.
 2. Settings, API, **Exposed schemas**: add `rain_day` (next to `public`). Without it every call from
@@ -99,6 +99,32 @@ You can deploy and use the app before any Twilio account is set up:
   them yet. **Do not give Twilio the webhook URLs until the credentials are set.**
 - Once Twilio exists: set `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`, redeploy, then follow
   section 3 per owner.
+
+### Practice mode (no number yet)
+
+An owner with no real texting number (and, with the real provider, no Messaging Service) is in
+**practice mode**: on Rain day the page says "Practice mode — nothing is texted to anyone. Your real
+number isn't set up yet." and offers **Send as practice**. The owner picks the days, unticks
+customers, edits the message and sends, and every message shows as a bubble on an on-screen phone
+(queued, sent, delivered, simulated). They can tap a customer and answer as them (including STOP,
+START and HELP) and see the forward their own cell would get. Replies show in the Replies list and
+the practice rain days in Past rain days, badged **Practice**. "Clear practice" wipes it.
+
+How it is kept safe:
+
+- **The server decides.** Practice mode is read from the owner's own `owner_settings` on every
+  request and action (number plus Messaging Service set means not practice). Nothing in the URL, a
+  form field, a header or an env var can switch it on. The moment you give the owner both values, the
+  practice screens redirect away and every practice action is refused.
+- **Nothing is sent.** Practice never touches Twilio or any provider (it does not even create one, so
+  it works with `SMS_PROVIDER=twilio` and no credentials). It is not `ALLOW_FAKE_SMS`; the fake
+  provider and its production guards are unchanged.
+- **Real data stays clean.** Practice has its own tables (`rain_day.practice_*`): never the real
+  rain days, messages, replies or opt-outs, and never counted against the real daily caps. A practice
+  STOP does not block a real customer. Owners can read their own practice rows; only the server
+  writes them.
+- **Limits.** 60 practice sends and replies per owner per hour, and at most 2,000 practice bubbles
+  per owner (past that they clear practice first).
 
 ## 3. Twilio
 

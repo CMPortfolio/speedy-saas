@@ -42,17 +42,17 @@ the hosted project's API settings in production.
 
 ## Deploy (Railway, one service per tool)
 
-- Root directory: repository root (the build needs the workspace)
-- Build command: `pnpm install --frozen-lockfile && pnpm turbo build --filter=@speedy/missed-call`
-- Start command: `pnpm --filter @speedy/missed-call start`
-- Watch paths: `apps/missed-call/**`, `packages/**`, `pnpm-lock.yaml`
-- Health check path: `/`
-- Env vars: everything in `.env.example`, plus `PORT` (Railway sets it) and `NODE_ENV=production`
-- Domain: `missed-call.naplesaiagency.com` (CNAME in Cloudflare to the Railway domain, DNS-only)
+Everything to do, with the production values, is in [LAUNCH.md](./LAUNCH.md): Supabase migrations
+and exposed schema, every environment variable, Twilio webhooks, account protection, A2P 10DLC and
+a smoke test. In short:
 
-`railway.json` in this folder carries the build and start commands; the engineer creates the
-service, sets the root directory and config path (`apps/missed-call/railway.json`), the domain and
-the env vars.
+- Root directory: repository root (the build needs the workspace)
+- Config path: `apps/missed-call/railway.json` (Railpack, `pnpm turbo build --filter=@speedy/missed-call`,
+  start `pnpm --filter @speedy/missed-call start`, health check `/`)
+- Watch paths: `apps/missed-call/**`, `packages/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`
+- Env vars: everything in `.env.example`; `SMS_WEBHOOK_PUBLIC_URL` is required in production
+- Domain: `missed-call.naplesaiagency.com`
+- Do not show the tool to owners until texting registration (A2P 10DLC) is approved
 
 ## Definition of Done (from CLAUDE.md)
 

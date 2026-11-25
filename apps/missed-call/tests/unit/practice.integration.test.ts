@@ -94,7 +94,7 @@ afterAll(async () => {
 describe.skipIf(!enabled)('practice mode through the server actions', () => {
   it('runs the whole flow, with the caller chosen on the server and each owner seeing only their own', async () => {
     as(a);
-    const r = await practiceCall();
+    const r = await practiceCall('/setup');
     expect(r.ok && r.note).toMatch(/The caller got your text/);
     const view = await readPractice(a.db);
     expect(view.calls).toHaveLength(1);
@@ -102,7 +102,7 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
     expect(view.calls[0]?.status).toBe('texted');
     expect(view.messages[0]?.body).toContain('Sorry we missed you. What do you need?');
 
-    const reply = await practiceReply(view.calls[0]!.id, 'leaking water heater, garage');
+    const reply = await practiceReply('/setup', view.calls[0]!.id, 'leaking water heater, garage');
     expect(reply.ok).toBe(true);
     const after = await readPractice(a.db);
     expect(after.calls[0]?.status).toBe('replied');
@@ -120,14 +120,17 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
     const callId = view.calls[0]!.id;
     as(b);
     for (const result of [
-      await practiceReply(callId, 'hijack'),
-      await practiceMark(callId, 'junk'),
-      await practiceCall(callId),
+      await practiceReply('/setup', callId, 'hijack'),
+      await practiceMark('/setup', callId, 'junk'),
+      await practiceCall('/setup', callId),
     ]) {
       expect(result.ok).toBe(false);
     }
-    // A made-up id is refused too, not a crash.
-    expect((await practiceMark('not-a-real-id', 'junk')).ok).toBe(false);
+    // A made-up id is refused up front, with a plain message, before it reaches the database.
+    const made = await practiceMark('/setup', 'not-a-real-id', 'junk');
+    expect(!made.ok && made.message).toBe('That is not one of your practice calls.');
+    const unknown = await practiceMark('/setup', crypto.randomUUID(), 'junk');
+    expect(!unknown.ok && unknown.message).toMatch(/practice call is gone/);
     expect(await readPractice(a.db)).toEqual(view);
     expect((await readPractice(b.db)).calls).toEqual([]);
 
@@ -137,7 +140,7 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
       .from('practice_messages')
       .insert({ owner_id: b.id, call_id: callId, direction: 'in', body: 'x' });
     expect(forged.error).not.toBeNull();
-    const clear = await practiceClear();
+    const clear = await practiceClear('/setup');
     expect(clear.ok).toBe(true);
     as(a);
     expect((await readPractice(a.db)).calls).toHaveLength(1);
@@ -146,10 +149,10 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
   it('repeats the same caller by id, inside the 24 hour rule, and Junk stops texts to it', async () => {
     as(a);
     const first = (await readPractice(a.db)).calls[0]!;
-    const again = await practiceCall(first.id);
+    const again = await practiceCall('/setup', first.id);
     expect(again.ok && again.note).toMatch(/24 hours/);
-    expect((await practiceMark(first.id, 'junk')).ok).toBe(true);
-    const junk = await practiceCall(first.id);
+    expect((await practiceMark('/setup', first.id, 'junk')).ok).toBe(true);
+    const junk = await practiceCall('/setup', first.id);
     expect(junk.ok && junk.note).toMatch(/Junk/);
     const out = (await readPractice(a.db)).messages.filter((m) => m.direction === 'out');
     expect(out).toHaveLength(1);
@@ -191,7 +194,7 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
       .single();
     expect(old.error).toBeNull();
     expect((await readPractice(b.db)).calls).toEqual([]);
-    await practiceClear();
+    await practiceClear('/setup');
     const stale = await admin
       .schema('missed_call')
       .from('practice_calls')
@@ -202,14 +205,14 @@ describe.skipIf(!enabled)('practice mode through the server actions', () => {
       })
       .select('id')
       .single();
-    expect((await practiceCall()).ok).toBe(true);
+    expect((await practiceCall('/setup')).ok).toBe(true);
     const left = await admin
       .schema('missed_call')
       .from('practice_calls')
       .select('id')
       .eq('id', stale.data?.id ?? '');
     expect(left.data).toEqual([]);
-    await practiceClear();
+    await practiceClear('/setup');
   });
 });
 
@@ -218,11 +221,11 @@ describe.skipIf(!enabled)('practice limits, expiry and switch-off', () => {
     as(b);
     let refused = false;
     for (let i = 0; i < 62 && !refused; i += 1) {
-      const r = await practiceCall();
+      const r = await practiceCall('/setup');
       if (!r.ok) refused = true;
     }
     expect(refused).toBe(true);
-    expect((await practiceClear()).ok).toBe(true);
+    expect((await practiceClear('/setup')).ok).toBe(true);
     expect((await readPractice(b.db)).calls).toEqual([]);
   });
 
@@ -236,11 +239,11 @@ describe.skipIf(!enabled)('practice limits, expiry and switch-off', () => {
     expect(set.error).toBeNull();
     const id = (await readPractice(a.db)).calls[0]!.id;
     for (const r of [
-      await practiceCall(),
-      await practiceCall(id),
-      await practiceReply(id, 'hi'),
-      await practiceMark(id, 'booked'),
-      await practiceClear(),
+      await practiceCall('/setup'),
+      await practiceCall('/setup', id),
+      await practiceReply('/setup', id, 'hi'),
+      await practiceMark('/setup', id, 'booked'),
+      await practiceClear('/setup'),
     ]) {
       expect(!r.ok && r.message).toMatch(/practice is switched off/);
     }

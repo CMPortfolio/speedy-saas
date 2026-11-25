@@ -21,7 +21,7 @@ export async function readPractice(client: SupabaseClient<Database>): Promise<Pr
   const [calls, messages] = await Promise.all([
     db
       .from('practice_calls')
-      .select('id, caller_number, received_at, status, texted_at, opted_out')
+      .select('id, caller_number, received_at, status, texted_at, opted_out, help_answered_at')
       .gt('received_at', since)
       .order('received_at', { ascending: false })
       .limit(50),
@@ -42,6 +42,7 @@ export async function readPractice(client: SupabaseClient<Database>): Promise<Pr
       status: r.status,
       textedAt: r.texted_at,
       optedOut: r.opted_out,
+      helpAnsweredAt: r.help_answered_at,
     })),
     messages: (messages.data ?? []).map((r) => ({
       id: r.id,

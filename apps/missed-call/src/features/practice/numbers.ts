@@ -24,3 +24,10 @@ export function nextPracticeCaller(
   }
   return `+12395550${101 + Math.floor(random() * 99)}` as `+1${string}`;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True for a well-formed id. Checked before any id from a request reaches the database. */
+export function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID.test(value);
+}

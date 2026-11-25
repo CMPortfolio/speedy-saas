@@ -11,6 +11,8 @@ export interface PracticeCall {
   status: PracticeStatus;
   textedAt: string | null;
   optedOut: boolean;
+  /** When the practice HELP answer was last shown for this caller. */
+  helpAnsweredAt: string | null;
 }
 
 export interface PracticeMessageRow {
@@ -39,6 +41,7 @@ export interface PracticeStore {
   setStatus(callId: string, status: PracticeStatus): Promise<void>;
   /** Mark every practice call from this number as having texted STOP (or START). */
   setOptedOut(caller: string, optedOut: boolean): Promise<void>;
+  markHelpAnswered(callId: string, now: Date): Promise<void>;
   addMessage(callId: string, direction: PracticeDirection, body: string): Promise<{ id: string }>;
   /** Every caller number this owner has used in practice, newest first. */
   callers(): Promise<string[]>;
@@ -48,7 +51,8 @@ export interface PracticeStore {
   clear(): Promise<void>;
 }
 
-const CALL_COLUMNS = 'id, caller_number, received_at, status, texted_at, opted_out';
+const CALL_COLUMNS =
+  'id, caller_number, received_at, status, texted_at, opted_out, help_answered_at';
 
 function toCall(row: {
   id: string;
@@ -57,6 +61,7 @@ function toCall(row: {
   status: PracticeStatus;
   texted_at: string | null;
   opted_out: boolean;
+  help_answered_at: string | null;
 }): PracticeCall {
   return {
     id: row.id,
@@ -65,6 +70,7 @@ function toCall(row: {
     status: row.status,
     textedAt: row.texted_at,
     optedOut: row.opted_out,
+    helpAnsweredAt: row.help_answered_at,
   };
 }
 
@@ -142,6 +148,15 @@ export function supabasePracticeStore(
         .eq('owner_id', ownerId)
         .eq('caller_number', caller);
       if (error) fail('set opt-out', error);
+    },
+
+    async markHelpAnswered(callId, now) {
+      const { error } = await db
+        .from('practice_calls')
+        .update({ help_answered_at: now.toISOString() })
+        .eq('owner_id', ownerId)
+        .eq('id', callId);
+      if (error) fail('mark help answered', error);
     },
 
     async addMessage(callId, direction, body) {

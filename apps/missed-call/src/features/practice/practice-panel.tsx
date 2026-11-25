@@ -11,6 +11,7 @@ import {
   practiceMark,
   practiceReply,
   type PracticeActionResult,
+  type PracticePage,
 } from './practice-actions';
 import { Phone } from './phone';
 import type { PracticeView } from './practice-state';
@@ -70,12 +71,14 @@ function CallRows({
   pending,
   onSelect,
   run,
+  from,
 }: {
   calls: PracticeView['calls'];
   currentId: string | null;
   pending: boolean;
   onSelect: (id: string) => void;
   run: Run;
+  from: PracticePage;
 }) {
   if (calls.length === 0) return null;
   return (
@@ -112,7 +115,7 @@ function CallRows({
                 variant="secondary"
                 disabled={pending || call.status === status}
                 aria-label={`${label}: ${formatUsPhone(call.callerNumber)} (practice)`}
-                onClick={() => run(() => practiceMark(call.id, status))}
+                onClick={() => run(() => practiceMark(from, call.id, status))}
               >
                 {label}
               </Button>
@@ -122,7 +125,7 @@ function CallRows({
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run(() => practiceCall(call.id))}
+              onClick={() => run(() => practiceCall(from, call.id))}
             >
               Calls again
             </Button>
@@ -133,7 +136,17 @@ function CallRows({
   );
 }
 
-function ReplyForm({ callId, pending, run }: { callId: string; pending: boolean; run: Run }) {
+function ReplyForm({
+  callId,
+  pending,
+  run,
+  from,
+}: {
+  callId: string;
+  pending: boolean;
+  run: Run;
+  from: PracticePage;
+}) {
   const [reply, setReply] = useState('');
   return (
     <form
@@ -142,7 +155,7 @@ function ReplyForm({ callId, pending, run }: { callId: string; pending: boolean;
         e.preventDefault();
         const body = reply;
         setReply('');
-        run(() => practiceReply(callId, body));
+        run(() => practiceReply(from, callId, body));
       }}
     >
       <label htmlFor="practice-reply" className="text-sm font-medium text-ink">
@@ -169,7 +182,15 @@ function ReplyForm({ callId, pending, run }: { callId: string; pending: boolean;
  * The practice phone for an owner whose real number is not set up yet. Everything the tool would
  * text shows here instead, and nothing is sent to anyone.
  */
-export function PracticePanel({ view, ownerCell }: { view: PracticeView; ownerCell: string }) {
+export function PracticePanel({
+  view,
+  ownerCell,
+  from,
+}: {
+  view: PracticeView;
+  ownerCell: string;
+  from: PracticePage;
+}) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<PracticeActionResult | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -192,7 +213,7 @@ export function PracticePanel({ view, ownerCell }: { view: PracticeView; ownerCe
       <div className="flex flex-wrap gap-3">
         <Button
           type="button"
-          onClick={() => run(() => practiceCall())}
+          onClick={() => run(() => practiceCall(from))}
           loading={pending}
           data-testid="practice-call"
         >
@@ -201,7 +222,7 @@ export function PracticePanel({ view, ownerCell }: { view: PracticeView; ownerCe
         <Button
           type="button"
           variant="secondary"
-          onClick={() => run(() => practiceClear())}
+          onClick={() => run(() => practiceClear(from))}
           disabled={pending || view.calls.length === 0}
           data-testid="practice-clear"
         >
@@ -217,6 +238,7 @@ export function PracticePanel({ view, ownerCell }: { view: PracticeView; ownerCe
         pending={pending}
         onSelect={setSelected}
         run={run}
+        from={from}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -230,7 +252,7 @@ export function PracticePanel({ view, ownerCell }: { view: PracticeView; ownerCe
             empty="Simulate a missed call to see the text the caller gets."
             testId="practice-caller-phone"
           />
-          {current && <ReplyForm callId={current.id} pending={pending} run={run} />}
+          {current && <ReplyForm callId={current.id} pending={pending} run={run} from={from} />}
         </div>
         <Phone
           title={`Your cell: ${formatUsPhone(ownerCell)}`}

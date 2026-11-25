@@ -30,7 +30,7 @@ export function memoryPracticeStore(options: { actionLimit?: number; maxMessages
       return calls.find((c) => c.id === id) ?? null;
     },
     async addCall(caller, now) {
-      const id = `pc${calls.length + 1}`;
+      const id = crypto.randomUUID();
       calls.push({
         id,
         owner: 'me',
@@ -39,6 +39,7 @@ export function memoryPracticeStore(options: { actionLimit?: number; maxMessages
         status: 'missed',
         textedAt: null,
         optedOut: false,
+        helpAnsweredAt: null,
       });
       return id;
     },
@@ -53,12 +54,16 @@ export function memoryPracticeStore(options: { actionLimit?: number; maxMessages
       const c = calls.find((x) => x.id === callId);
       if (c) c.status = status;
     },
+    async markHelpAnswered(callId, now) {
+      const c = calls.find((x) => x.id === callId);
+      if (c) c.helpAnsweredAt = now.toISOString();
+    },
     async setOptedOut(caller, optedOut) {
       for (const c of calls) if (c.callerNumber === caller) c.optedOut = optedOut;
     },
     async addMessage(callId, direction: PracticeDirection, body) {
       clock += 1;
-      const id = `pm${messages.length + 1}`;
+      const id = crypto.randomUUID();
       messages.push({
         id,
         callId,

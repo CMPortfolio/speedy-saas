@@ -364,6 +364,7 @@ export type Database = {
         Row: {
           caller_number: string;
           created_at: string;
+          help_answered_at: string | null;
           id: string;
           opted_out: boolean;
           owner_id: string;
@@ -376,6 +377,7 @@ export type Database = {
         Insert: {
           caller_number: string;
           created_at?: string;
+          help_answered_at?: string | null;
           id?: string;
           opted_out?: boolean;
           owner_id: string;
@@ -387,6 +389,7 @@ export type Database = {
         Update: {
           caller_number?: string;
           created_at?: string;
+          help_answered_at?: string | null;
           id?: string;
           opted_out?: boolean;
           owner_id?: string;

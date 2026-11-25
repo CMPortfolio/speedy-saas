@@ -12,7 +12,7 @@ import {
   simulateRepeatCall,
   type PracticeLine,
 } from '../../src/features/practice/practice-flow';
-import { isPracticeCaller, nextPracticeCaller } from '../../src/features/practice/numbers';
+import { isPracticeCaller, isUuid, nextPracticeCaller } from '../../src/features/practice/numbers';
 import { memoryPracticeStore } from './practice-memory-store';
 
 const CALLER = '+12395550123';
@@ -54,6 +54,15 @@ describe('practice numbers', () => {
     expect(nextPracticeCaller(['+12395550101', '+12395550102'])).toBe('+12395550103');
     const all = Array.from({ length: 99 }, (_v, i) => `+12395550${101 + i}`);
     expect(isPracticeCaller(nextPracticeCaller(all, () => 0.5))).toBe(true);
+  });
+});
+
+describe('isUuid', () => {
+  it('accepts a uuid and nothing else', () => {
+    expect(isUuid(crypto.randomUUID())).toBe(true);
+    for (const bad of ['', 'abc', 'not-a-real-id', "1' or '1'='1", 42, null, undefined]) {
+      expect(isUuid(bad)).toBe(false);
+    }
   });
 });
 
@@ -152,22 +161,38 @@ describe('sendPracticeReply', () => {
     expect(mem.calls[0]?.status).toBe('replied');
   });
 
-  it('a plain Yes is a lead; STOP is not forwarded; START lifts it; HELP gets the standard answer', async () => {
+  it('a plain Yes is a lead; STOP, START and HELP are handled but never kept as replies', async () => {
     const id = await start();
     await sendPracticeReply(deps(), id, 'Yes');
     expect(sent('forward')).toHaveLength(1);
+    expect(sent('in').map((m) => m.body)).toEqual(['Yes']);
 
     await sendPracticeReply(deps(), id, 'STOP');
     expect(mem.calls[0]?.optedOut).toBe(true);
-    expect(sent('forward')).toHaveLength(1);
-
     await sendPracticeReply(deps(), id, 'START');
     expect(mem.calls[0]?.optedOut).toBe(false);
-    expect(sent('forward')).toHaveLength(1);
-
     await sendPracticeReply(deps(), id, 'HELP');
     expect(sent('out').at(-1)?.body).toContain('Gulf Coast Plumbing: reply STOP to opt out.');
+
+    // Only the lead was kept as a reply and forwarded, like the real flow.
+    expect(sent('in').map((m) => m.body)).toEqual(['Yes']);
     expect(sent('forward')).toHaveLength(1);
+  });
+
+  it('answers HELP once a day per practice caller, then again after 24 hours', async () => {
+    const id = await start();
+    const helps = () => sent('out').filter((m) => m.body.includes('reply STOP to opt out. Msg'));
+    await sendPracticeReply(deps(), id, 'HELP');
+    const again = await sendPracticeReply(deps(), id, 'help');
+    expect(again.ok && again.note).toMatch(/already answered/);
+    expect(helps()).toHaveLength(1);
+    now = new Date(MORNING.getTime() + 24 * 3600_000 + 60_000);
+    await sendPracticeReply(deps(), id, 'HELP');
+    expect(helps()).toHaveLength(2);
+    // A different practice caller has their own day.
+    await simulateMissedCall(deps(), '+12395550124');
+    await sendPracticeReply(deps(), mem.calls.at(-1)!.id, 'HELP');
+    expect(helps()).toHaveLength(3);
   });
 
   it('ignores a reply from a number marked Junk, like the real flow', async () => {
@@ -183,8 +208,10 @@ describe('sendPracticeReply', () => {
     expect(!(await sendPracticeReply(deps(), id, '   ')).ok).toBe(true);
     const long = await sendPracticeReply(deps(), id, 'x'.repeat(321));
     expect(!long.ok && long.code).toBe('bad_input');
-    const missing = await sendPracticeReply(deps(), 'someone-elses-call', 'hi');
+    const missing = await sendPracticeReply(deps(), crypto.randomUUID(), 'hi');
     expect(!missing.ok && missing.code).toBe('not_found');
+    const malformed = await sendPracticeReply(deps(), 'someone-elses-call', 'hi');
+    expect(!malformed.ok && malformed.code).toBe('bad_input');
     expect(sent('in')).toHaveLength(0);
   });
 
@@ -204,8 +231,10 @@ describe('markPracticeCall and clearPractice', () => {
       expect((await markPracticeCall(deps(), id, status)).ok).toBe(true);
       expect(mem.calls[0]?.status).toBe(status);
     }
-    const other = await markPracticeCall(deps(), 'not-mine', 'junk');
+    const other = await markPracticeCall(deps(), crypto.randomUUID(), 'junk');
     expect(!other.ok && other.code).toBe('not_found');
+    const malformed = await markPracticeCall(deps(), 'not-mine', 'junk');
+    expect(!malformed.ok && malformed.code).toBe('bad_input');
     const bad = await markPracticeCall(deps(), id, 'replied' as 'junk');
     expect(!bad.ok && bad.code).toBe('bad_input');
   });
@@ -231,8 +260,10 @@ describe('new and repeat calls are chosen on the server', () => {
     await simulateNewCall(deps());
     await simulateRepeatCall(deps(), mem.calls[0]!.id);
     expect(mem.calls.map((c) => c.callerNumber)).toEqual(['+12395550101', '+12395550101']);
-    const bad = await simulateRepeatCall(deps(), 'someone-elses');
+    const bad = await simulateRepeatCall(deps(), crypto.randomUUID());
     expect(!bad.ok && bad.code).toBe('not_found');
+    const malformed = await simulateRepeatCall(deps(), 'someone-elses');
+    expect(!malformed.ok && malformed.code).toBe('bad_input');
     expect(mem.calls).toHaveLength(2);
   });
 });

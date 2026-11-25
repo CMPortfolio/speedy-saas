@@ -5,8 +5,13 @@ import { sendFirstOrFollowup, type OptOutStore } from '@speedy/sms/send';
 
 import { pickTemplate } from '../missed-calls/pick-template';
 import { leadText } from '../missed-calls/handle-reply';
-import { PRACTICE_LINE_NUMBER, isPracticeCaller, nextPracticeCaller } from './numbers';
-import type { PracticeCall, PracticeStatus, PracticeStore } from './practice-store';
+import { PRACTICE_LINE_NUMBER, isPracticeCaller, isUuid, nextPracticeCaller } from './numbers';
+import type {
+  PracticeCall,
+  PracticeDirection,
+  PracticeStatus,
+  PracticeStore,
+} from './practice-store';
 
 /**
  * Practice mode for missed-call: the same rules as the real flow (the owner's template and
@@ -66,14 +71,24 @@ async function reserve(store: PracticeStore): Promise<PracticeResult | null> {
   return null;
 }
 
-/** Texts shown on the caller's phone. The owner's cell is display-only: nothing is ever "sent" to it. */
-function callerPhone(deps: PracticeDeps, callId: string): PracticeSink {
+/**
+ * A practice text lands on the screen in the direction it is given: `out` is a text the caller
+ * receives. The owner's cell is display-only, so nothing here is ever addressed to it.
+ */
+function practiceSink(
+  deps: PracticeDeps,
+  callId: string,
+  direction: PracticeDirection,
+): PracticeSink {
   return {
     async add(message) {
-      return deps.store.addMessage(callId, 'out', message.body);
+      return deps.store.addMessage(callId, direction, message.body);
     },
   };
 }
+
+const NOT_A_CALL = 'That is not one of your practice calls.';
+const GONE = 'That practice call is gone. Tap Clear practice and try again.';
 
 /** Practice has no opt-out list of its own to consult at send time: STOP and Junk are checked first. */
 const nothingBlocked: OptOutStore = {
@@ -108,9 +123,9 @@ export async function simulateRepeatCall(
   deps: PracticeDeps,
   callId: string,
 ): Promise<PracticeResult> {
+  if (!isUuid(callId)) return fail('bad_input', NOT_A_CALL);
   const call = await deps.store.getCall(callId);
-  if (!call)
-    return fail('not_found', 'That practice call is gone. Tap Clear practice and try again.');
+  if (!call) return fail('not_found', GONE);
   return simulateMissedCall(deps, call.callerNumber);
 }
 
@@ -132,7 +147,7 @@ export async function simulateMissedCall(
   if (why) return done(`Missed call from ${label} logged. ${why}`);
 
   const sent = await sendFirstOrFollowup(
-    practiceProvider(callerPhone(deps, callId)),
+    practiceProvider(practiceSink(deps, callId, 'out')),
     nothingBlocked,
     {
       to: caller,
@@ -158,25 +173,27 @@ export async function sendPracticeReply(
   if (body.length > MAX_PRACTICE_REPLY) {
     return fail('bad_input', `Keep it under ${MAX_PRACTICE_REPLY} characters.`);
   }
+  if (!isUuid(callId)) return fail('bad_input', NOT_A_CALL);
   const blocked = await reserve(deps.store);
   if (blocked) return blocked;
 
   const call = await deps.store.getCall(callId);
-  if (!call)
-    return fail('not_found', 'That practice call is gone. Tap Clear practice and try again.');
+  if (!call) return fail('not_found', GONE);
   const prior = await deps.store.callsFor(call.callerNumber);
   if (prior.some((c) => c.status === 'junk')) {
     return fail('ignored', 'This number is marked Junk, so its texts are ignored.');
   }
-
-  await deps.store.addMessage(callId, 'in', body);
-  return handleKeywordOrLead(deps, call, body);
+  return handleKeywordOrLead(deps, call, prior, body);
 }
 
-/** STOP, START and HELP are handled like the real flow; anything else, including a plain "Yes", is a lead. */
+/**
+ * STOP, START and HELP are handled like the real flow, and like the real flow they are not kept as
+ * replies. Anything else, including a plain "Yes", is a reply and a lead.
+ */
 async function handleKeywordOrLead(
   deps: PracticeDeps,
   call: PracticeCall,
+  prior: PracticeCall[],
   body: string,
 ): Promise<PracticeResult> {
   const keyword = classifyKeyword(body);
@@ -188,21 +205,35 @@ async function handleKeywordOrLead(
     await deps.store.setOptedOut(call.callerNumber, false);
     return done('START recorded. This number can get texts again.');
   }
-  const provider = practiceProvider(callerPhone(deps, call.id));
-  if (keyword === 'help') {
-    await provider.sendText({
-      to: call.callerNumber as E164,
-      from: PRACTICE_LINE_NUMBER,
-      body: helpReply(deps.line.businessName),
-    });
-    return done('HELP answered on the caller phone.');
-  }
+  if (keyword === 'help') return answerHelp(deps, call, prior);
+
+  await deps.store.addMessage(call.id, 'in', body);
   if (call.status === 'missed' || call.status === 'texted') {
     await deps.store.setStatus(call.id, 'replied');
   }
   // "Your cell" is only a view of the lead. It is saved for the screen, never texted to owner_cell.
   await deps.store.addMessage(call.id, 'forward', leadText(call.callerNumber, body));
   return done('Your cell got the lead.');
+}
+
+/** HELP gets the standard answer once a day per practice caller, as in the real flow. */
+async function answerHelp(
+  deps: PracticeDeps,
+  call: PracticeCall,
+  prior: PracticeCall[],
+): Promise<PracticeResult> {
+  const now = deps.now?.() ?? new Date();
+  const answeredToday = prior.some(
+    (c) => c.helpAnsweredAt && now.getTime() - Date.parse(c.helpAnsweredAt) < DAY,
+  );
+  if (answeredToday) return done('HELP was already answered for this number in the last 24 hours.');
+  await practiceProvider(practiceSink(deps, call.id, 'out')).sendText({
+    to: call.callerNumber as E164,
+    from: PRACTICE_LINE_NUMBER,
+    body: helpReply(deps.line.businessName),
+  });
+  await deps.store.markHelpAnswered(call.id, now);
+  return done('HELP answered on the caller phone.');
 }
 
 /** Called back, Booked or Junk on a practice call. Junk stops practice texts to that number. */
@@ -214,11 +245,11 @@ export async function markPracticeCall(
   if (!['called_back', 'booked', 'junk'].includes(status)) {
     return fail('bad_input', 'Pick Called back, Booked or Junk.');
   }
+  if (!isUuid(callId)) return fail('bad_input', NOT_A_CALL);
   const blocked = await reserve(deps.store);
   if (blocked) return blocked;
   const call = await deps.store.getCall(callId);
-  if (!call)
-    return fail('not_found', 'That practice call is gone. Tap Clear practice and try again.');
+  if (!call) return fail('not_found', GONE);
   await deps.store.setStatus(callId, status);
   return done('Saved.');
 }

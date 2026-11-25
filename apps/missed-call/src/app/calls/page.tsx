@@ -23,7 +23,9 @@ export default async function CallsPage() {
     <section className="space-y-6 py-6">
       <h1 className="text-2xl font-semibold">Missed calls</h1>
       <CallList calls={calls} />
-      {line && practice && <PracticePanel view={practice} ownerCell={line.ownerCell} />}
+      {line && practice && (
+        <PracticePanel view={practice} ownerCell={line.ownerCell} from="/calls" />
+      )}
     </section>
   );
 }

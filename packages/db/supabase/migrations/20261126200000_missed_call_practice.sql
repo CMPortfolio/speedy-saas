@@ -16,6 +16,8 @@ create table missed_call.practice_calls (
   texted_at timestamptz,
   -- The practice caller texted STOP.
   opted_out boolean not null default false,
+  -- When the practice HELP answer was last shown for this caller; it is answered once a day.
+  help_answered_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   -- Lets practice_messages point at a call AND its owner, so a message can never be filed under

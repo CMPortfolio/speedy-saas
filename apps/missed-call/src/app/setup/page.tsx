@@ -37,7 +37,9 @@ export default async function SetupPage() {
 
       {line && <LineStatus line={line} numberReady={numberReady} />}
 
-      {line && practice && <PracticePanel view={practice} ownerCell={line.ownerCell} />}
+      {line && practice && (
+        <PracticePanel view={practice} ownerCell={line.ownerCell} from="/setup" />
+      )}
 
       {line && !line.ownerCellVerified && <CellConfirm canSend={numberReady} />}
 

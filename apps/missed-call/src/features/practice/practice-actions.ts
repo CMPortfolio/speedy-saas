@@ -22,6 +22,9 @@ import { supabasePracticeStore } from './practice-store';
 const log = logger.child({ feature: 'practice' });
 
 /** What the practice panel shows after an action. */
+/** The page a practice action was started from, so signing in again returns there. */
+export type PracticePage = '/setup' | '/calls';
+
 export type PracticeActionResult = { ok: true; note: string } | { ok: false; message: string };
 
 const FAILED: PracticeActionResult = {
@@ -36,9 +39,11 @@ const FAILED: PracticeActionResult = {
  * practice provider is made inside the flow and writes to the owner's practice rows.
  */
 async function practiceAction(
+  from: unknown,
   run: (deps: PracticeDeps) => Promise<PracticeResult>,
 ): Promise<PracticeActionResult> {
-  const user = await requireUser('/setup');
+  // A signed-out visitor is sent back to the page they were on. Only these two are allowed.
+  const user = await requireUser(from === '/calls' ? '/calls' : '/setup');
   try {
     const owner = await createServerSupabase();
     const guarded = guardPractice(await getMyLine(owner));
@@ -61,23 +66,31 @@ async function practiceAction(
  * here; with `repeatOfCallId` it is the same caller as one of the owner's own practice calls (to try
  * the 24 hour rule). Nothing else about the caller can be supplied.
  */
-export async function practiceCall(repeatOfCallId?: string): Promise<PracticeActionResult> {
-  return practiceAction((deps) =>
+export async function practiceCall(
+  from: PracticePage,
+  repeatOfCallId?: string,
+): Promise<PracticeActionResult> {
+  return practiceAction(from, (deps) =>
     repeatOfCallId ? simulateRepeatCall(deps, String(repeatOfCallId)) : simulateNewCall(deps),
   );
 }
 
-export async function practiceReply(callId: string, body: string): Promise<PracticeActionResult> {
-  return practiceAction((deps) => sendPracticeReply(deps, String(callId), String(body)));
+export async function practiceReply(
+  from: PracticePage,
+  callId: string,
+  body: string,
+): Promise<PracticeActionResult> {
+  return practiceAction(from, (deps) => sendPracticeReply(deps, String(callId), String(body)));
 }
 
 export async function practiceMark(
+  from: PracticePage,
   callId: string,
   status: 'called_back' | 'booked' | 'junk',
 ): Promise<PracticeActionResult> {
-  return practiceAction((deps) => markPracticeCall(deps, String(callId), status));
+  return practiceAction(from, (deps) => markPracticeCall(deps, String(callId), status));
 }
 
-export async function practiceClear(): Promise<PracticeActionResult> {
-  return practiceAction((deps) => clearPractice(deps));
+export async function practiceClear(from: PracticePage): Promise<PracticeActionResult> {
+  return practiceAction(from, (deps) => clearPractice(deps));
 }

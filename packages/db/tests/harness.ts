@@ -161,3 +161,10 @@ export function isDenied(e: unknown): boolean {
     typeof e === 'object' && e !== null && (e as { code?: string }).code === INSUFFICIENT_PRIVILEGE
   );
 }
+
+/** A valid, effectively unique US number for fixtures (about 8 million possibilities). */
+export function randomUsNumber(): string {
+  const exchange = 200 + Math.floor(Math.random() * 800);
+  const line = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+  return `+1239${exchange}${line}`;
+}

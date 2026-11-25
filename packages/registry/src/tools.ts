@@ -102,5 +102,17 @@ export const TOOLS: readonly Tool[] = [
     status: 'building',
     kind: 'tool',
   },
+  {
+    slug: 'missed-call',
+    name: 'Missed Call Text-Back',
+    pitch: 'Miss a call on a job and the caller gets a text back in seconds.',
+    // Railway service `missed-call` exists, with the custom domain attached and DNS (Cloudflare CNAME) in place.
+    // Still building: texting registration (A2P 10DLC) must be approved before owners see it. See
+    // apps/missed-call/LAUNCH.md. Confirm before setting status to live.
+    url: 'https://missed-call.naplesaiagency.com',
+    tradeTags: ['home-services', 'plumbing', 'hvac', 'electrical', 'cleaning'],
+    status: 'building',
+    kind: 'tool',
+  },
   // new-tool: entries are added above this line. Keep this comment.
 ];

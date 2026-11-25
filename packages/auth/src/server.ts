@@ -5,7 +5,8 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-import { authCookieOptions } from './cookies';
+import { appOrigin } from './app-origin';
+import { authCookieOptions, scopedCookieMethods, verifierScope } from './cookies';
 import { authEnv } from './env';
 
 export type ServerSupabase = SupabaseClient<Database>;
@@ -24,16 +25,20 @@ export async function createServerSupabase(): Promise<ServerSupabase> {
         authEnv.AUTH_COOKIE_DOMAIN,
         process.env.NODE_ENV === 'production',
       ),
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (toSet) => {
-          try {
-            for (const { name, value, options } of toSet) cookieStore.set(name, value, options);
-          } catch {
-            // Called from a Server Component: middleware refreshes the session instead.
-          }
+      // The session is shared across tools; the sign-in verifier is this tool's own (see cookies.ts).
+      cookies: scopedCookieMethods(
+        {
+          getAll: () => cookieStore.getAll(),
+          setAll: (toSet) => {
+            try {
+              for (const { name, value, options } of toSet) cookieStore.set(name, value, options);
+            } catch {
+              // Called from a Server Component: middleware refreshes the session instead.
+            }
+          },
         },
-      },
+        verifierScope(appOrigin()),
+      ),
     },
   );
 }

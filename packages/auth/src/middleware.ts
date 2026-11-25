@@ -2,7 +2,8 @@ import type { Database } from '@speedy/db/types';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { authCookieOptions } from './cookies';
+import { appOrigin } from './app-origin';
+import { authCookieOptions, scopedCookieMethods, verifierScope } from './cookies';
 
 export interface UpdateSessionOptions {
   /** Paths that need a signed-in user; others are left alone. Prefix match. */
@@ -34,15 +35,19 @@ export async function updateSession(
       process.env.AUTH_COOKIE_DOMAIN,
       request.nextUrl.protocol === 'https:',
     ),
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (toSet) => {
-        for (const { name, value } of toSet) request.cookies.set(name, value);
-        response = NextResponse.next({ request });
-        for (const { name, value, options: cookieOptions } of toSet)
-          response.cookies.set(name, value, cookieOptions);
+    // The session is shared across tools; the sign-in verifier is this tool's own (see cookies.ts).
+    cookies: scopedCookieMethods(
+      {
+        getAll: () => request.cookies.getAll(),
+        setAll: (toSet) => {
+          for (const { name, value } of toSet) request.cookies.set(name, value);
+          response = NextResponse.next({ request });
+          for (const { name, value, options: cookieOptions } of toSet)
+            response.cookies.set(name, value, cookieOptions);
+        },
       },
-    },
+      verifierScope(appOrigin(request.nextUrl.origin)),
+    ),
   });
 
   // getUser() validates the token with Supabase and refreshes it when needed.

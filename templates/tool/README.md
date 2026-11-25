@@ -1,6 +1,7 @@
 SCOPE LINE: what this tool does for an owner, and what it won't do. (Replace this line first; it is the tool's one-line scope and is copied into `tool.config.ts`.)
 
-# **NAME**
+<!-- prettier-ignore -->
+# __NAME__
 
 Speedy SaaS tool `__SLUG__`. Lives at `https://__SLUG__.naplesaiagency.com`. Ticket: <!-- ClickUp link -->.
 

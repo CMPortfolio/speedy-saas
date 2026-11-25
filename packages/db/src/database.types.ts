@@ -156,6 +156,105 @@ export type Database = {
     Enums: { membership_role: 'owner' | 'member' };
     CompositeTypes: Record<never, never>;
   };
+  job_photos: {
+    Tables: {
+      jobs: {
+        Row: {
+          id: string;
+          owner_id: string | null;
+          share_slug: string;
+          title: string | null;
+          note: string | null;
+          business_name: string | null;
+          logo_path: string | null;
+          review_url: string | null;
+          claim_token_hash: string | null;
+          expires_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id?: string | null;
+          share_slug: string;
+          title?: string | null;
+          note?: string | null;
+          business_name?: string | null;
+          logo_path?: string | null;
+          review_url?: string | null;
+          claim_token_hash?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string | null;
+          share_slug?: string;
+          title?: string | null;
+          note?: string | null;
+          business_name?: string | null;
+          logo_path?: string | null;
+          review_url?: string | null;
+          claim_token_hash?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      photos: {
+        Row: {
+          id: string;
+          job_id: string;
+          kind: Database['job_photos']['Enums']['photo_kind'];
+          storage_path: string;
+          width: number;
+          height: number;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          job_id: string;
+          kind: Database['job_photos']['Enums']['photo_kind'];
+          storage_path: string;
+          width: number;
+          height: number;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          kind?: Database['job_photos']['Enums']['photo_kind'];
+          storage_path?: string;
+          width?: number;
+          height?: number;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'photos_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+    };
+    Views: Record<never, never>;
+    Functions: {
+      owns_job: { Args: { job: string }; Returns: boolean };
+    };
+    Enums: { photo_kind: 'before' | 'after' };
+    CompositeTypes: Record<never, never>;
+  };
 };
 
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];

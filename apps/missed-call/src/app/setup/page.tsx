@@ -5,6 +5,8 @@ import { createServerSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { formatUsPhone } from '@speedy/lib/phone';
 
+import { env } from '@/config/env';
+import { serviceMissing } from '@/features/missed-calls/store';
 import { CellConfirm } from '@/features/setup/cell-confirm';
 import { ForwardingGuide } from '@/features/setup/forwarding-guide';
 import { getMyLine } from '@/features/setup/line-queries';
@@ -16,6 +18,10 @@ export const dynamic = 'force-dynamic';
 export default async function SetupPage() {
   await requireUser('/setup');
   const line = await getMyLine(await createServerSupabase());
+  // Ready means a number and, on the real provider in production, the owner's Messaging Service too.
+  const numberReady = Boolean(
+    line?.providerNumber && !serviceMissing(line, { name: env.SMS_PROVIDER }, env.NODE_ENV),
+  );
   return (
     <section className="space-y-8 py-6">
       <header className="space-y-2">
@@ -25,12 +31,12 @@ export default async function SetupPage() {
         </p>
       </header>
 
-      <SetupForm line={line} />
+      <SetupForm line={line} numberReady={numberReady} />
 
       {line && (
         <section className="space-y-3" data-testid="line-status">
           <h2 className="text-lg font-semibold">Your line</h2>
-          {line.providerNumber ? (
+          {numberReady && line.providerNumber ? (
             <p>
               Your missed-call number is{' '}
               <strong data-testid="provider-number">{formatUsPhone(line.providerNumber)}</strong>.
@@ -52,9 +58,11 @@ export default async function SetupPage() {
         </section>
       )}
 
-      {line && !line.ownerCellVerified && <CellConfirm canSend={Boolean(line.providerNumber)} />}
+      {line && !line.ownerCellVerified && <CellConfirm canSend={numberReady} />}
 
-      {line?.providerNumber && <ForwardingGuide providerNumber={line.providerNumber} />}
+      {numberReady && line?.providerNumber && (
+        <ForwardingGuide providerNumber={line.providerNumber} />
+      )}
     </section>
   );
 }

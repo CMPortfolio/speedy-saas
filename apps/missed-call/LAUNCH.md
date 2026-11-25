@@ -101,7 +101,13 @@ a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
    `/api/sms/status` (delivery receipts) is **not used**: leave the Messaging Service delivery
    status callback empty.
 
-3. Give the number **and the owner's Messaging Service** to the owner's line (SQL editor, service
+3. **Only after** you have added the number to the owner's Messaging Service sender pool **and** the
+   campaign shows **VERIFIED**, enter `provider_number` and `provider_messaging_service_sid` on the
+   line. Until both are set, the line is "not ready" on the real provider in production: no
+   auto-text, forwarded lead, HELP answer or confirmation code is sent (the log says
+   `line has no messaging service`), the setup page keeps saying the number is being set up, and
+   the cooldown is not used up, so the first call after you finish is still texted. Give the number
+   **and the owner's Messaging Service** to the owner's line (SQL editor, service
    role; owners cannot set either):
    `update missed_call.lines set provider_number = '+1239XXXXXXX', provider_messaging_service_sid = 'MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' where id = '<line id>';`
    The service SID must be `MG` plus 32 lowercase hex characters. The setup page then shows the

@@ -23,6 +23,26 @@ export interface LineRecord {
   timezone: string;
 }
 
+/** The line's Messaging Service for a send, or nothing when it has none. The one place this is decided. */
+export function withService(line: { messagingServiceSid: string | null }): {
+  messagingServiceSid?: string;
+} {
+  return line.messagingServiceSid ? { messagingServiceSid: line.messagingServiceSid } : {};
+}
+
+/**
+ * True when this line must not send yet: on the real provider in production, a line without its
+ * own Messaging Service is "not ready", exactly like a line without a number. The fake provider and
+ * development are unaffected.
+ */
+export function serviceMissing(
+  line: { messagingServiceSid: string | null },
+  provider: { name: string },
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): boolean {
+  return provider.name === 'twilio' && nodeEnv === 'production' && !line.messagingServiceSid;
+}
+
 export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked' | 'foreign' | 'rate_limited';
 
 /**

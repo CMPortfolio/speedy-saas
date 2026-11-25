@@ -107,7 +107,7 @@ function ErrorSummary({
 }
 
 /** Business name, cell, the text callers get (with a live preview), after-hours text and hours. */
-export function SetupForm({ line }: { line: MyLine | null }) {
+export function SetupForm({ line, numberReady }: { line: MyLine | null; numberReady: boolean }) {
   const [state, action, pending] = useActionState(saveSetup, idleSetup);
   const errors = state.status === 'invalid' ? state.errors : {};
   const f = useSetupFields(line);
@@ -173,7 +173,7 @@ export function SetupForm({ line }: { line: MyLine | null }) {
       )}
       {state.status === 'saved' && (
         <p role="status" data-testid="setup-saved" className="text-base font-medium text-ink">
-          {line?.providerNumber
+          {numberReady
             ? 'Saved. Callers you miss will get this text.'
             : "Saved. Your missed-call number isn't ready yet, so callers won't get this text until it is."}
         </p>

@@ -1,6 +1,6 @@
 import type { CallStatusEvent } from '@speedy/sms/provider';
 import { fakeProvider } from '@speedy/sms/fake';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handleMissedCall } from '../../src/features/missed-calls/handle-missed-call';
 import type { LineRecord } from '../../src/features/missed-calls/store';
@@ -314,5 +314,45 @@ describe('handleMissedCall failures and late sends', () => {
     await run(event());
     expect(sms.sent[0]).toMatchObject({ from: LINE_NUMBER });
     expect(sms.sent[0]).not.toHaveProperty('messagingServiceSid');
+  });
+
+  describe('a line with no Messaging Service on the real provider in production', () => {
+    let twilio: typeof sms;
+    beforeEach(() => {
+      twilio = { ...sms, name: 'twilio' } as unknown as typeof sms;
+      vi.stubEnv('NODE_ENV', 'production');
+    });
+    afterEach(() => vi.unstubAllEnvs());
+
+    const runOn = (provider: typeof sms, e = event()) =>
+      handleMissedCall({ provider, store: mem.store, now: () => clock }, e);
+
+    it('sends nothing, releases the claim and still logs the call', async () => {
+      const twiml = await runOn(twilio);
+      expect(sms.sent).toHaveLength(0);
+      expect(mem.calls).toHaveLength(1);
+      expect(mem.calls[0]?.status).toBe('missed');
+      expect(mem.calls[0]?.textedAt).toBeNull();
+      expect(twiml).toContain('<Say>');
+      expect(twiml).not.toContain('sending you a text');
+    });
+
+    it('texts as soon as the line has a Messaging Service', async () => {
+      mem = memoryStore(
+        [{ ...line, messagingServiceSid: 'MGdddddddddddddddddddddddddddddddd' }],
+        () => clock,
+      );
+      await runOn(twilio);
+      expect(sms.sent).toHaveLength(1);
+    });
+
+    it('does not touch the fake provider or development', async () => {
+      await runOn(sms);
+      expect(sms.sent).toHaveLength(1);
+      vi.stubEnv('NODE_ENV', 'development');
+      mem = memoryStore([line], () => clock);
+      await runOn(twilio, event({ callSid: 'CA-dev' }));
+      expect(sms.sent).toHaveLength(2);
+    });
   });
 });

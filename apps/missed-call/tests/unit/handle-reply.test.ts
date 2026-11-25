@@ -1,6 +1,6 @@
 import { fakeProvider } from '@speedy/sms/fake';
 import type { InboundMessage } from '@speedy/sms/provider';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handleMissedCall } from '../../src/features/missed-calls/handle-missed-call';
 import { handleReply } from '../../src/features/missed-calls/handle-reply';
@@ -268,5 +268,33 @@ describe('handleReply keywords and caps', () => {
         messagingServiceSid: 'MGbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       });
     }
+  });
+});
+
+describe('a line with no Messaging Service on the real provider in production', () => {
+  let twilio: ReturnType<typeof fakeProvider>;
+  beforeEach(() => {
+    twilio = { ...sms, name: 'twilio' } as unknown as ReturnType<typeof fakeProvider>;
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const replyOn = (provider: ReturnType<typeof fakeProvider>, m: InboundMessage) =>
+    handleReply({ provider, store: mem.store }, m);
+
+  it('saves the reply but forwards nothing, and HELP gets no answer or claim', async () => {
+    await replyOn(twilio, text('need a quote'));
+    await replyOn(twilio, text('HELP'));
+    expect(mem.calls[0]?.status).toBe('replied');
+    expect(sms.sent).toHaveLength(0);
+    expect(mem.messages.some((m) => m.kind === 'help')).toBe(false);
+  });
+
+  it('forwards and answers once the line has a Messaging Service', async () => {
+    mem = memoryStore([{ ...line, messagingServiceSid: 'MGdddddddddddddddddddddddddddddddd' }]);
+    await miss();
+    sms.reset();
+    await replyOn(twilio, text('need a quote'));
+    await replyOn(twilio, text('HELP'));
+    expect(sms.sent).toHaveLength(2);
   });
 });

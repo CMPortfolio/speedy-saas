@@ -7,6 +7,8 @@ import {
   type VerifyStore,
 } from '@speedy/sms/verify-phone';
 
+import { serviceMissing, withService } from '../missed-calls/store';
+
 /**
  * Confirming the owner's cell with a texted 6-digit code. Replies are only forwarded to a cell that
  * has been confirmed here. The rules (10 minutes, five tries, three codes an hour) are
@@ -86,7 +88,8 @@ export function createOwnerCellVerifier(deps: CellVerifierDeps): OwnerCellVerifi
       if (!line) return fail('no_line', MESSAGES.no_line);
       if (line.ownerCellVerified) return fail('already_confirmed', MESSAGES.already_confirmed);
       const from = line.providerNumber ? normalizeUsPhone(line.providerNumber) : null;
-      if (!from) return fail('no_number', MESSAGES.no_number);
+      if (!from || serviceMissing(line, deps.provider))
+        return fail('no_number', MESSAGES.no_number);
       const phone = normalizeUsPhone(line.ownerCell);
       if (!phone || !isUsDomesticPhone(phone)) return fail('bad_cell', MESSAGES.bad_cell);
 
@@ -101,7 +104,7 @@ export function createOwnerCellVerifier(deps: CellVerifierDeps): OwnerCellVerifi
           subject: ownerId,
           phone,
           from,
-          ...(line.messagingServiceSid ? { messagingServiceSid: line.messagingServiceSid } : {}),
+          ...withService(line),
           message: (code) =>
             `Your ${line.businessName} missed-call code is ${code}. It expires in 10 minutes.`,
         },

@@ -6,7 +6,13 @@ import { sendFirstOrFollowup } from '@speedy/sms/send';
 import { twimlHangup, twimlSay } from '@speedy/sms/twilio';
 
 import { isQuietNow, parseQuietHours } from './quiet-hours';
-import type { LineRecord, MissedCallStore } from './store';
+import {
+  serviceMissing,
+  withService,
+  type LineRecord,
+  type LogResult,
+  type MissedCallStore,
+} from './store';
 
 const log = logger.child({ feature: 'missed-calls' });
 
@@ -50,8 +56,32 @@ function sendTemplate(
     ...text,
     from: line.providerNumber,
     businessName: line.businessName,
-    messagingServiceSid: line.messagingServiceSid ?? undefined,
+    ...withService(line),
   });
+}
+
+/**
+ * Decides whether a logged call is texted. A line with no Messaging Service is not ready on the real
+ * provider in production: nothing is sent, and the cooldown claim is given back so the first call after the admin finishes setup is
+ * still texted. Returns true when the send was held.
+ */
+async function holdSend(
+  deps: MissedCallDeps,
+  line: LineRecord,
+  logged: LogResult,
+  caller: CallStatusEvent['from'],
+): Promise<boolean> {
+  if (logged.outcome === 'rate_limited') {
+    log.warn('auto-text cap reached for line', { line: line.id });
+  }
+  if (logged.outcome !== 'send' || !serviceMissing(line, deps.provider)) return false;
+  log.warn('line has no messaging service', { line: line.id, caller: maskUsPhone(caller) });
+  try {
+    await deps.store.releaseTextClaim(logged.callId);
+  } catch (e) {
+    log.error('could not release the text claim', { line: line.id, error: e });
+  }
+  return true;
 }
 
 /**
@@ -83,8 +113,8 @@ export async function handleMissedCall(
     caller: maskUsPhone(event.from),
     outcome: logged.outcome,
   });
-  if (logged.outcome === 'rate_limited') {
-    log.warn('auto-text cap reached for line', { line: line.id });
+  if (await holdSend(deps, line, logged, event.from)) {
+    return twimlSay(greeting(line.businessName, false));
   }
   // A retried webhook means the first one already texted, so it hears the same greeting.
   if (logged.outcome === 'duplicate') return twimlSay(greeting(line.businessName, true));

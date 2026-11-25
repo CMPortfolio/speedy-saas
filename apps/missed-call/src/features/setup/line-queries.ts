@@ -15,10 +15,12 @@ export interface MyLine {
   quietHours: QuietHours | null;
   /** Entered by an admin in v1. Null until Naples AI assigns one. */
   providerNumber: string | null;
+  /** The owner's Twilio Messaging Service, admin-entered. */
+  messagingServiceSid: string | null;
 }
 
 const COLUMNS =
-  'id, business_name, owner_cell, owner_cell_verified, template, after_hours_template, quiet_hours, provider_number';
+  'id, business_name, owner_cell, owner_cell_verified, template, after_hours_template, quiet_hours, provider_number, provider_messaging_service_sid';
 
 /** The signed-in owner's line, or null before setup. `client` carries their session, so RLS applies. */
 export async function getMyLine(client: SupabaseClient<Database>): Promise<MyLine | null> {
@@ -40,6 +42,7 @@ export async function getMyLine(client: SupabaseClient<Database>): Promise<MyLin
     afterHoursTemplate: data.after_hours_template,
     quietHours: parseQuietHours(data.quiet_hours),
     providerNumber: data.provider_number,
+    messagingServiceSid: data.provider_messaging_service_sid,
   };
 }
 

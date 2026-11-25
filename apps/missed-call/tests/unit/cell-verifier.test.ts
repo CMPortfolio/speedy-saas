@@ -1,6 +1,6 @@
 import { fakeProvider } from '@speedy/sms/fake';
 import { VERIFY_RULES, type VerifyChallenge, type VerifyStore } from '@speedy/sms/verify-phone';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createOwnerCellVerifier,
@@ -218,5 +218,27 @@ describe('confirm', () => {
       expect(old.ok).toBe(false);
     }
     expect((await verifier.confirm(OWNER, second)).ok).toBe(true);
+  });
+
+  describe('a line with no Messaging Service on the real provider in production', () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it('treats the number as not ready and sends no code', async () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      const twilio = { ...sms, name: 'twilio' } as unknown as typeof sms;
+      const v = createOwnerCellVerifier({
+        provider: twilio,
+        store,
+        now: () => clock,
+        loadLine: async () => line,
+        markVerified: async () => true,
+      });
+      const r = await v.start(OWNER);
+      expect(!r.ok && r.code).toBe('no_number');
+      expect(sms.sent).toHaveLength(0);
+      line = { ...baseLine, messagingServiceSid: 'MGdddddddddddddddddddddddddddddddd' };
+      expect((await v.start(OWNER)).ok).toBe(true);
+      expect(sms.sent).toHaveLength(1);
+    });
   });
 });

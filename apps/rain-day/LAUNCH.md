@@ -35,7 +35,7 @@ certificate issued. HTTPS must work before you give Twilio the webhook URLs.
    `20261125005215_rain_day_init.sql`, `20261125010100_rain_day_customers.sql`,
    `20261125300000_rain_day_reschedules.sql`, `20261125300050_rain_day_send_hardening.sql`,
    `20261125300100_rain_day_replies.sql`, `20261125300150_rain_day_help_throttle.sql`,
-   `20261125300200_rain_day_per_owner_numbers.sql`, `20261125300250_rain_day_help_per_owner.sql`.
+   `20261125300200_rain_day_per_owner_numbers.sql`, `20261125300250_rain_day_help_per_owner.sql`, `20261125300300_rain_day_messaging_service.sql`.
    `20261125300050` moves opt-outs out of `customers.opted_out` into `rain_day.opt_outs` and drops
    that column; it copies existing opt-outs first.
 2. Settings, API, **Exposed schemas**: add `rain_day` (next to `public`). Without it every call from
@@ -58,30 +58,32 @@ certificate issued. HTTPS must work before you give Twilio the webhook URLs.
 
 ### Environment variables
 
+There is no global Messaging Service variable: each owner's service lives in the database (section 3), and a
+leftover `TWILIO_MESSAGING_SERVICE_SID` in the environment is ignored.
+
 Every `process.env` read reachable from `apps/rain-day` is in this table (audited across
 `apps/rain-day`, `packages/auth`, `packages/lib`, `packages/sms`, `packages/db`, `packages/ui`).
 
-| Variable                         | Required             | Production value / notes                                                                                                                                                |
-| -------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`       | yes                  | `https://rxcuuhzwgwnfbfboujak.supabase.co`                                                                                                                              |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | yes                  | the project's anon key                                                                                                                                                  |
-| `SUPABASE_SERVICE_ROLE_KEY`      | yes                  | server only. The send step and the webhooks write with it, after their checks. Never `NEXT_PUBLIC_`.                                                                    |
-| `APP_URL`                        | **yes**              | `https://rain-day.naplesaiagency.com`. In production the app will not start without it: Twilio signs the exact webhook URL and it is taken from here.                   |
-| `SMS_WEBHOOK_PUBLIC_URL`         | optional             | only if the webhook host differs from `APP_URL`. With neither set in production the webhooks answer 500 rather than guess.                                              |
-| `SMS_PROVIDER`                   | yes                  | `twilio`. `fake` is refused in production and on Railway.                                                                                                               |
-| `TWILIO_ACCOUNT_SID`             | yes                  | `AC...` from the Twilio console                                                                                                                                         |
-| `TWILIO_AUTH_TOKEN`              | yes                  | server only. Sends texts and signs every webhook.                                                                                                                       |
-| `TWILIO_MESSAGING_SERVICE_SID`   | **leave empty**      | Twilio ignores each owner's `from` number when this is set, and every owner needs their own Messaging Service (section 3). The per-owner SID will live in the database. |
-| `SMS_FROM_NUMBER`                | **leave unset**      | development default for the fake provider only. Real owners text from `rain_day.owner_settings.sender_number`.                                                          |
-| `AUTH_COOKIE_DOMAIN`             | yes                  | `.naplesaiagency.com` (one sign-in across tools)                                                                                                                        |
-| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | yes                  | `.naplesaiagency.com`, the same value for the browser client. `NEXT_PUBLIC_*` is baked in at build time, so set it in Railway **before the build runs**.                |
-| `LOG_LEVEL`                      | optional             | `info` (default in production)                                                                                                                                          |
-| `RAILWAY_ENVIRONMENT`            | set by Railway       | do not set. Its presence makes the app refuse the fake SMS provider.                                                                                                    |
-| `PORT`                           | set by Railway       | do not set                                                                                                                                                              |
-| `NODE_ENV`                       | set by `next start`  | `production`                                                                                                                                                            |
-| `NEXT_PHASE`                     | set by Next          | do not set. It lets `next build` run before `APP_URL` is needed.                                                                                                        |
-| `SKIP_ENV_VALIDATION`, `CI`      | **never** on Railway | build and test switches only: `SKIP_ENV_VALIDATION=1` skips env checks in a CI build, `CI=1` makes the e2e fail instead of skip.                                        |
-| `ALLOW_FAKE_SMS`                 | **never**            | local e2e only (`playwright.config.ts` sets it for its own server). It is refused on Railway, but never set it on a deployed host.                                      |
+| Variable                         | Required             | Production value / notes                                                                                                                                                                    |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       | yes                  | `https://rxcuuhzwgwnfbfboujak.supabase.co`                                                                                                                                                  |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | yes                  | the project's anon key                                                                                                                                                                      |
+| `SUPABASE_SERVICE_ROLE_KEY`      | yes                  | server only. The send step and the webhooks write with it, after their checks. Never `NEXT_PUBLIC_`.                                                                                        |
+| `APP_URL`                        | **yes**              | `https://rain-day.naplesaiagency.com`. In production the app will not start without it: Twilio signs the exact webhook URL and it is taken from here.                                       |
+| `SMS_WEBHOOK_PUBLIC_URL`         | recommended          | `https://rain-day.naplesaiagency.com`. Set it explicitly: Twilio signs the exact URL. It falls back to `APP_URL`; with neither set in production the webhooks answer 500 rather than guess. |
+| `SMS_PROVIDER`                   | yes                  | `twilio`. `fake` is refused in production and on Railway.                                                                                                                                   |
+| `TWILIO_ACCOUNT_SID`             | yes                  | `AC...` from the Twilio console                                                                                                                                                             |
+| `TWILIO_AUTH_TOKEN`              | yes                  | server only. Sends texts and signs every webhook.                                                                                                                                           |
+| `SMS_FROM_NUMBER`                | **leave unset**      | development default for the fake provider only. Real owners text from `rain_day.owner_settings.sender_number`.                                                                              |
+| `AUTH_COOKIE_DOMAIN`             | yes                  | `.naplesaiagency.com` (one sign-in across tools)                                                                                                                                            |
+| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | yes                  | `.naplesaiagency.com`, the same value for the browser client. `NEXT_PUBLIC_*` is baked in at build time, so set it in Railway **before the build runs**.                                    |
+| `LOG_LEVEL`                      | optional             | `info` (default in production)                                                                                                                                                              |
+| `RAILWAY_ENVIRONMENT`            | set by Railway       | do not set. Its presence makes the app refuse the fake SMS provider.                                                                                                                        |
+| `PORT`                           | set by Railway       | do not set                                                                                                                                                                                  |
+| `NODE_ENV`                       | set by `next start`  | `production`                                                                                                                                                                                |
+| `NEXT_PHASE`                     | set by Next          | do not set. It lets `next build` run before `APP_URL` is needed.                                                                                                                            |
+| `SKIP_ENV_VALIDATION`, `CI`      | **never** on Railway | build and test switches only: `SKIP_ENV_VALIDATION=1` skips env checks in a CI build, `CI=1` makes the e2e fail instead of skip.                                                            |
+| `ALLOW_FAKE_SMS`                 | **never**            | local e2e only (`playwright.config.ts` sets it for its own server). It is refused on Railway, but never set it on a deployed host.                                                          |
 
 ## 3. Twilio
 
@@ -122,36 +124,43 @@ a Messaging Service per owner and each owner needs their own approved A2P brand 
    can only be linked with one Campaign at a time", and approving the campaign registers the numbers
    in that service's pool
    (https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/direct-standard-onboarding). The
-   association is asynchronous: poll the campaign until it shows as verified before sending.
+   association is asynchronous: **add the number to the service's sender pool, then poll the campaign
+   until it shows as VERIFIED** before you enter the values in step 5.
 4. **Point the number at the app.** Messaging, "A message comes in", `HTTP POST`:
    `https://rain-day.naplesaiagency.com/api/sms/inbound`.
-5. **Give the number to the owner** (SQL editor, service role; owners cannot write these columns):
+5. **Give the number and the service to the owner, together** (SQL editor, service role; owners
+   cannot write these columns):
 
    ```sql
-   insert into rain_day.owner_settings (owner_id, sender_number)
-   values ('<owner user id>', '+1239XXXXXXX')
-   on conflict (owner_id) do update set sender_number = excluded.sender_number;
+   insert into rain_day.owner_settings (owner_id, sender_number, sender_messaging_service_sid)
+   values ('<owner user id>', '+1239XXXXXXX', 'MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+   on conflict (owner_id) do update
+     set sender_number = excluded.sender_number,
+         sender_messaging_service_sid = excluded.sender_messaging_service_sid;
    ```
 
-   (The Messaging Service SID goes in the same row once the follow-up below lands.)
+   The SID is the 34-character `MG...` of **that owner's** service. It must be unique (one service per
+   owner), and so must the number.
 
 6. **Check Send enables.** Sign in as the owner (or look at their page): Settings shows "Customers get
    your texts from (239) ...", and the Rain day page no longer says "Your texting number isn't set up
    yet", so Send is available. The owner's cell confirmation code is texted from this number.
 
-Until the row has a number, the owner's Rain day page shows "Your texting number isn't set up yet.
+Until the row has both a number and a Messaging Service, the owner's Rain day page shows "Your texting number isn't set up yet.
 We'll let you know when it's ready." and Send is off.
 
-> **TODO (waiting on the packages/sms change):** Twilio's guidance is to send with **both** the
-> owner's `MessagingServiceSid` and `From` = the owner's number, which pins the sender and keeps the
-> service's features (Advanced Opt-Out, logs, Insights)
-> (https://www.twilio.com/docs/messaging/services,
-> https://www.twilio.com/docs/messaging/services/services-send-messages). Sending with `From` alone is
-> undocumented for registered traffic, so do not rely on it in production. A follow-up adds
-> `owner_settings.sender_messaging_service_sid` (`MG...`, service-role write only) and passes both on
-> every send; this section will then also say to store the owner's service SID next to the number.
-> Do not launch an owner before that change is in. Test what Twilio does when `From` is not in the
-> service's pool in a Twilio subaccount first (not documented).
+**How a text is sent.** Every text goes out with **both** the owner's `From` number and the owner's
+`MessagingServiceSid`: that pins the sender and keeps the service's features (Advanced Opt-Out, logs,
+Insights) (https://www.twilio.com/docs/messaging/services,
+https://www.twilio.com/docs/messaging/services/services-send-messages). Sending with `From` alone is
+undocumented for registered traffic, so the app does not do it. This covers every send: reschedule
+texts, forwards to the owner's cell, HELP answers and the cell confirmation code.
+
+With the real provider, an owner whose row lacks **either** value is not ready for any of those: Send
+is off, and a forward, HELP answer or confirmation code is refused, logged as a warning
+`owner has no messaging service`, and counted as failed (a forward shows as failed on the Replies
+list). The fake provider needs only the number. What Twilio does when `From` is not in the service's
+sender pool is not documented, so make a test send to your own phone for each owner before launch.
 
 ### Account protection (do before any real traffic)
 
@@ -230,7 +239,7 @@ the pages it comes from:
 1. `https://rain-day.naplesaiagency.com/` loads (this is also the Railway health check) and shows the
    landing page and the Naples AI footer.
 2. Sign in, open Settings, save the business name and cell. Confirm the page says your texting number
-   isn't set up yet, then set one for your own user (section 3, step 5).
+   isn't set up yet, then set the number and Messaging Service for your own user (section 3, step 5).
 3. Import a few customers whose usual day is today's weekday (include your own cell), open Rain day,
    and send. Your phone gets its own text and the results page moves from Sent to Delivered.
 4. Reply to the text. The reply shows under Replies; after you confirm your cell it is also texted to

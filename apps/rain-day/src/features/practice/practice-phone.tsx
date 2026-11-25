@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { firstName } from '@speedy/lib/phone';
 import { cn } from '@speedy/ui/cn';
+import { Eyebrow } from '@speedy/ui/eyebrow';
 
 import { BubbleView, PhoneFrame } from './phone-frame';
 import type { Bubble, Thread } from './phone-types';
@@ -57,7 +58,7 @@ export function PracticePhone({ rescheduleId, threads, cell, serverNow }: Practi
   return (
     <div className="flex flex-col gap-6">
       <section aria-label="Customers" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Tap a customer to see their phone</h3>
+        <Eyebrow>Tap a customer to see their phone</Eyebrow>
         <ul className="flex flex-col gap-2">
           {threads.map((t) => {
             const last = t.bubbles.filter((b) => b.direction === 'out' && b.kind === 'text').at(-1);
@@ -72,8 +73,8 @@ export function PracticePhone({ rescheduleId, threads, cell, serverNow }: Practi
                   className={cn(
                     'flex min-h-tap w-full items-center justify-between gap-3 rounded-brand border px-4 py-2 text-left',
                     t.customerId === selected.customerId
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-surface',
+                      ? 'border-brand bg-brand-soft'
+                      : 'border-line bg-surface',
                   )}
                 >
                   <span className="text-base font-medium text-ink">{t.name}</span>

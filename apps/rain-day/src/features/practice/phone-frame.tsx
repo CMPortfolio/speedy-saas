@@ -26,13 +26,15 @@ export function PhoneFrame({
   testId?: string;
 }) {
   return (
-    <section aria-label={label} data-testid={testId} className="flex flex-col gap-2">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+    <section
+      aria-label={label}
+      data-testid={testId}
+      className="mx-auto flex w-full max-w-xs flex-col gap-2 rounded-[2rem] border-4 border-navy bg-surface p-3"
+    >
+      <h3 className="flex items-center justify-center gap-2 text-center text-sm font-semibold text-muted">
         {label} <PracticeBadge />
       </h3>
-      <div className="flex min-h-48 flex-col gap-2 rounded-brand border-2 border-border bg-background p-3">
-        {children}
-      </div>
+      <div className="flex min-h-48 flex-col gap-2">{children}</div>
     </section>
   );
 }
@@ -50,9 +52,9 @@ export function BubbleView({ bubble, now }: { bubble: Bubble; now: Date }) {
       <p
         data-status={status ?? undefined}
         className={cn(
-          'max-w-[85%] rounded-brand px-3 py-2 text-sm',
+          'max-w-[85%] whitespace-pre-line rounded-2xl px-3 py-2 text-sm',
           mine && 'bg-primary text-primary-foreground',
-          !mine && !note && 'border border-border bg-surface text-ink',
+          !mine && !note && 'bg-brand-soft text-ink',
           note && 'text-xs italic text-muted',
         )}
       >

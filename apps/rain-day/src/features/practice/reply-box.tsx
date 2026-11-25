@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Alert } from '@speedy/ui/alert';
 import { Button } from '@speedy/ui/button';
 
 import { sendPracticeReply } from './actions';
@@ -46,7 +47,7 @@ export function ReplyBox({
         maxLength={1600}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        className="min-h-tap w-full rounded-brand border border-border bg-surface px-3 py-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="min-h-tap w-full rounded-brand border border-field bg-surface px-3 py-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       />
       <div className="flex flex-wrap gap-2">
         <Button loading={pending} disabled={body.trim() === ''} onClick={() => send(body)}>
@@ -58,11 +59,7 @@ export function ReplyBox({
           </Button>
         ))}
       </div>
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="error">{error}</Alert>}
     </div>
   );
 }

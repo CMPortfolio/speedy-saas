@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
+import { PageHeader } from '@speedy/ui/page-header';
 
 import { ButtonLink } from '@/components/button-link';
 import { expirePractice } from '@/features/practice/core';
@@ -83,12 +84,11 @@ export default async function PracticePage({
 
   return (
     <section className="flex flex-col gap-6 py-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Practice phone</h1>
-        <p className="text-sm text-muted">
-          See what each customer would get, and answer as them to see what you would get.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Practice"
+        title="Practice phone"
+        description="See what each customer would get, and answer as them to see what you would get."
+      />
       <PracticeBanner />
       {!selected ? (
         <EmptyState
@@ -118,7 +118,7 @@ export default async function PracticePage({
                     <li key={d.id}>
                       <Link
                         href={`/rain-day/practice?day=${d.id}`}
-                        className="flex min-h-tap items-center rounded-brand border border-border bg-surface px-4 py-2 text-ink"
+                        className="flex min-h-tap items-center rounded-brand border border-line bg-surface px-4 py-2 text-ink hover:bg-brand-soft"
                       >
                         {dayOf(d.from_date)} moved to {dayOf(d.to_date)}
                       </Link>

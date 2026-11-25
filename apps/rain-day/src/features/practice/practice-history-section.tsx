@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { Card } from '@speedy/ui/card';
+
 import { PracticeBadge } from './practice-badge';
 import type { PracticeDaySummary } from './queries';
 
@@ -32,14 +34,13 @@ export function PracticeHistorySection({ items }: { items: PracticeDaySummary[] 
       <ul className="flex flex-col gap-2">
         {items.map((s) => (
           <li key={s.day.id}>
-            <Link
-              href={`/rain-day/practice?day=${s.day.id}`}
-              className="flex min-h-tap flex-col gap-1 rounded-brand border border-dashed border-border bg-surface px-4 py-3 hover:bg-background"
-            >
-              <span className="flex items-center gap-2 text-base font-medium text-ink">
-                {dayOf(s.day.from_date)} moved to {dayOf(s.day.to_date)} <PracticeBadge />
-              </span>
-              <span className="text-sm text-muted">{counts(s)}</span>
+            <Link href={`/rain-day/practice?day=${s.day.id}`} className="block">
+              <Card className="flex min-h-tap flex-col gap-1 border-dashed p-4 hover:bg-brand-soft">
+                <span className="flex items-center gap-2 text-base font-medium text-ink">
+                  {dayOf(s.day.from_date)} moved to {dayOf(s.day.to_date)} <PracticeBadge />
+                </span>
+                <span className="text-sm text-muted">{counts(s)}</span>
+              </Card>
             </Link>
           </li>
         ))}

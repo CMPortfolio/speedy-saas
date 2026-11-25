@@ -31,7 +31,8 @@ separate change once the steps below are done and you say it is shipping.
 
 1. New Service from the same repo, name it `job-photos-cleanup`. Same root directory.
 2. Config path = `apps/job-photos/railway.cleanup.json`. It runs
-   `pnpm --filter @speedy/job-photos cleanup` on schedule `0 8 * * *` (08:00 UTC daily).
+   `pnpm --filter @speedy/job-photos cleanup` on schedule `0 8 * * *` (08:00 UTC daily). Its build command is only an `echo` (the cleanup runs TypeScript source with tsx, so there is
+   nothing to build); keep it free of `;` or `&&`, which Railway would run as separate commands.
 3. Give it only `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (the same values as
    the web service, via Railway shared variables). It runs the TypeScript source directly and does
    not build the web app.

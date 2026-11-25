@@ -30,3 +30,6 @@ blob-report/
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# Claude Code session files
+.claude/

@@ -15,6 +15,7 @@ const line: LineRecord = {
   id: 'line-1',
   providerNumber: LINE_NUMBER,
   ownerCell: OWNER,
+  ownerCellVerified: true,
   businessName: 'Gulf Coast Plumbing',
   template: 'Sorry we missed your call. What do you need?',
   afterHoursTemplate: null,
@@ -152,6 +153,16 @@ describe('handleReply', () => {
 });
 
 describe('handleReply keywords and caps', () => {
+  it('saves the reply but does not forward it while the owner cell is unverified', async () => {
+    mem = memoryStore([{ ...line, ownerCellVerified: false }]);
+    await miss();
+    sms.reset();
+    await reply(text('need a quote'));
+    expect(mem.calls[0]?.status).toBe('replied');
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(1);
+    expect(sms.sent).toHaveLength(0);
+  });
+
   it('records and forwards a plain "Yes" from someone who never texted STOP', async () => {
     await reply(text('Yes'));
     expect(mem.calls[0]?.status).toBe('replied');

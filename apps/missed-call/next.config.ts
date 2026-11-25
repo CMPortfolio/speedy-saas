@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '@speedy/db',
     '@speedy/lib',
     '@speedy/registry',
+    '@speedy/sms',
     '@speedy/ui',
   ],
   images: { remotePatterns: [{ protocol: 'https', hostname: '*.supabase.co' }] },

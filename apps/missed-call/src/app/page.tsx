@@ -30,11 +30,27 @@ export default function LandingPage() {
         file so it knows which calls you missed and where to send the replies. Phone numbers stay
         behind a sign-in; nothing is saved until you do.
       </p>
-      <ul className="space-y-2 text-muted">
-        <li>Works on your phone, no app to install.</li>
-        <li>Set up in under 3 minutes; the first text-back goes out on the next missed call.</li>
-        <li>Replies land in one list, newest first, so you call back when the job is done.</li>
-      </ul>
+      <section aria-labelledby="how" className="space-y-3">
+        <h2 id="how" className="text-xl font-semibold">
+          How it works
+        </h2>
+        <ol className="list-decimal space-y-2 pl-5 text-muted">
+          <li>You tell us your business name, your cell and what to text. About three minutes.</li>
+          <li>
+            You dial one code on your phone so calls you don&apos;t answer go to your missed-call
+            number.
+          </li>
+          <li>The caller gets your text within seconds, asking what they need.</li>
+          <li>
+            Their reply lands in one list and gets texted to your cell. Tap to call back, or mark it
+            Booked or Junk.
+          </li>
+        </ol>
+        <p className="text-muted">
+          Works on your phone, no app to install. It&apos;s not a phone system or an answering
+          service. It just gets you the lead before they call the next guy.
+        </p>
+      </section>
     </section>
   );
 }

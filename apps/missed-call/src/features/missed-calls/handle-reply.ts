@@ -88,6 +88,11 @@ async function forwardLead(
   line: LineRecord,
   message: InboundMessage,
 ): Promise<void> {
+  // Until the owner proves the cell is theirs, replies stay in the list and are not texted out.
+  if (!line.ownerCellVerified) {
+    log.info('owner cell not verified, reply not forwarded', { line: line.id });
+    return;
+  }
   const ownerCell = normalizeUsPhone(line.ownerCell);
   if (!ownerCell || !isUsDomesticPhone(ownerCell)) {
     log.warn('owner cell is not a US number, reply not forwarded', { line: line.id });

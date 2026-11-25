@@ -45,6 +45,7 @@ async function makeOwner(tag: 'a' | 'b'): Promise<Owner> {
       owner_id: id,
       provider_number: lineNumber[tag],
       owner_cell: OWNER_CELL,
+      owner_cell_verified: true,
       business_name: tag === 'a' ? 'Gulf Coast Plumbing' : 'Bay Electric',
       template: 'Sorry we missed your call. What do you need?',
     })

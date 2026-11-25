@@ -492,5 +492,44 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
         expect(del.rowCount).toBe(1);
       });
     });
+
+    it('owners cannot verify their own cell; changing the cell clears the flag', async () => {
+      if (!db) return;
+      await expect(
+        db.as(alice, (c) =>
+          c.query('update missed_call.lines set owner_cell_verified = true where id = $1', [
+            aliceLine,
+          ]),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      await expect(
+        db.as(alice, (c) =>
+          c.query(
+            `insert into missed_call.lines (owner_id, owner_cell, business_name, template, owner_cell_verified)
+             values ($1, '+12395550105', 'Self Verified', 'hi', true)`,
+            [alice.id],
+          ),
+        ),
+      ).rejects.toSatisfy(isDenied);
+      await db.asService((c) =>
+        c.query('update missed_call.lines set owner_cell_verified = true where id = $1', [
+          aliceLine,
+        ]),
+      );
+      const stays = await db.asService((c) =>
+        c.query<{ owner_cell_verified: boolean }>(
+          "update missed_call.lines set template = 'New wording' where id = $1 returning owner_cell_verified",
+          [aliceLine],
+        ),
+      );
+      expect(stays.rows[0]?.owner_cell_verified).toBe(true);
+      const cleared = await db.as(alice, (c) =>
+        c.query<{ owner_cell_verified: boolean }>(
+          "update missed_call.lines set owner_cell = '+12395550106' where id = $1 returning owner_cell_verified",
+          [aliceLine],
+        ),
+      );
+      expect(cleared.rows[0]?.owner_cell_verified).toBe(false);
+    });
   },
 );

@@ -10,6 +10,8 @@ export interface LineRecord {
   id: string;
   providerNumber: E164;
   ownerCell: string;
+  /** True once the owner confirmed the cell with a one-time code. Replies are not forwarded before. */
+  ownerCellVerified: boolean;
   businessName: string;
   template: string;
   afterHoursTemplate: string | null;
@@ -83,7 +85,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       const { data, error } = await db
         .from('lines')
         .select(
-          'id, provider_number, owner_cell, business_name, template, after_hours_template, quiet_hours, timezone',
+          'id, provider_number, owner_cell, owner_cell_verified, business_name, template, after_hours_template, quiet_hours, timezone',
         )
         .eq('provider_number', number)
         .maybeSingle();
@@ -93,6 +95,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
         id: data.id,
         providerNumber: number,
         ownerCell: data.owner_cell,
+        ownerCellVerified: data.owner_cell_verified,
         businessName: data.business_name,
         template: data.template,
         afterHoursTemplate: data.after_hours_template,

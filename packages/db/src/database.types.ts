@@ -164,6 +164,7 @@ export type Database = {
           owner_id: string;
           provider_number: string | null;
           owner_cell: string;
+          owner_cell_verified: boolean;
           business_name: string;
           template: string;
           after_hours_template: string | null;
@@ -177,6 +178,7 @@ export type Database = {
           owner_id: string;
           provider_number?: string | null;
           owner_cell: string;
+          owner_cell_verified?: boolean;
           business_name: string;
           template: string;
           after_hours_template?: string | null;
@@ -190,6 +192,7 @@ export type Database = {
           owner_id?: string;
           provider_number?: string | null;
           owner_cell?: string;
+          owner_cell_verified?: boolean;
           business_name?: string;
           template?: string;
           after_hours_template?: string | null;

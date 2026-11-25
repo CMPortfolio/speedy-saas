@@ -39,6 +39,7 @@
         "NEXT_PUBLIC_*",
         "AUTH_*",
         "SMS_*",
+        "ALLOW_FAKE_SMS",
         "TWILIO_*",
         "PLAYWRIGHT_*"
       ]

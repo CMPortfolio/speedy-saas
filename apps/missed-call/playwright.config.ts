@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { tool } from './tool.config';
 
 const port = Number(process.env.PORT ?? tool.devPort);
-const baseURL = `http://127.0.0.1:${port}`;
+const baseURL = `http://localhost:${port}`;
 
 /**
  * Every tool's one-moment flow is tested on a phone viewport. `pnpm test:e2e` builds first
@@ -21,6 +21,9 @@ export default defineConfig({
     command: `pnpm exec next start -p ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    // The provider is mocked: the fake SMS provider on a production build, and the public URL the
+    // webhooks are verified against.
+    env: { SMS_PROVIDER: 'fake', ALLOW_FAKE_SMS: '1', APP_URL: baseURL },
     timeout: 120_000,
   },
 });

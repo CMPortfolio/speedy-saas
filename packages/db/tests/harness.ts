@@ -141,7 +141,7 @@ export async function connectTestDb(): Promise<TestDb | null> {
     pool,
     async createUser(email = `${crypto.randomUUID()}@resend.dev`) {
       const { rows } = await pool.query<{ id: string }>(
-        'insert into auth.users (email) values ($1) returning id',
+        "insert into auth.users (id, email, aud, role) values (gen_random_uuid(), $1, 'authenticated', 'authenticated') returning id",
         [email],
       );
       return { id: rows[0]!.id, email };

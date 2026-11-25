@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react';
 
 import { formatUsPhone } from '@speedy/lib/phone';
+import { Alert } from '@speedy/ui/alert';
 import { Button } from '@speedy/ui/button';
+import { Card } from '@speedy/ui/card';
+import { Eyebrow } from '@speedy/ui/eyebrow';
+import { Input } from '@speedy/ui/input';
 
 import {
   practiceCall,
@@ -44,7 +48,7 @@ function pickCall(view: PracticeView, selected: string | null) {
 /** Marks everything on screen as practice, so it is never mistaken for a real call. */
 function PracticeBadge() {
   return (
-    <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted">
+    <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-deep">
       Practice
     </span>
   );
@@ -53,13 +57,9 @@ function PracticeBadge() {
 function ResultNote({ result }: { result: PracticeActionResult | null }) {
   if (!result) return null;
   return (
-    <p
-      role={result.ok ? 'status' : 'alert'}
-      data-testid="practice-note"
-      className={result.ok ? 'text-ink' : 'text-sm font-medium text-danger'}
-    >
-      {result.ok ? result.note : result.message}
-    </p>
+    <div data-testid="practice-note">
+      <Alert tone={result.ok ? 'info' : 'error'}>{result.ok ? result.note : result.message}</Alert>
+    </div>
   );
 }
 
@@ -84,52 +84,49 @@ function CallRows({
   return (
     <ul className="space-y-2" data-testid="practice-calls">
       {calls.map((call) => (
-        <li
-          key={call.id}
-          data-testid="practice-call-row"
-          data-status={call.status}
-          className="space-y-2 rounded-brand border border-border bg-surface p-3"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => onSelect(call.id)}
-              aria-pressed={currentId === call.id}
-              className="min-h-tap text-left text-base font-semibold underline-offset-2 hover:underline"
-            >
-              {formatUsPhone(call.callerNumber)}
-            </button>
-            <span className="flex items-center gap-2">
-              <PracticeBadge />
-              <span data-testid="practice-status" className="text-sm font-medium text-muted">
-                {STATUS_LABEL[call.status]}
+        <li key={call.id}>
+          <Card data-testid="practice-call-row" data-status={call.status} className="space-y-2 p-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onSelect(call.id)}
+                aria-pressed={currentId === call.id}
+                className="min-h-tap text-left text-base font-semibold underline-offset-2 hover:underline"
+              >
+                {formatUsPhone(call.callerNumber)}
+              </button>
+              <span className="flex items-center gap-2">
+                <PracticeBadge />
+                <span data-testid="practice-status" className="text-sm font-medium text-muted">
+                  {STATUS_LABEL[call.status]}
+                </span>
               </span>
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {MARKS.map(({ status, label }) => (
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MARKS.map(({ status, label }) => (
+                <Button
+                  key={status}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending || call.status === status}
+                  aria-label={`${label}: ${formatUsPhone(call.callerNumber)} (practice)`}
+                  onClick={() => run(() => practiceMark(from, call.id, status))}
+                >
+                  {label}
+                </Button>
+              ))}
               <Button
-                key={status}
                 type="button"
                 size="sm"
-                variant="secondary"
-                disabled={pending || call.status === status}
-                aria-label={`${label}: ${formatUsPhone(call.callerNumber)} (practice)`}
-                onClick={() => run(() => practiceMark(from, call.id, status))}
+                variant="ghost"
+                disabled={pending}
+                onClick={() => run(() => practiceCall(from, call.id))}
               >
-                {label}
+                Calls again
               </Button>
-            ))}
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={() => run(() => practiceCall(from, call.id))}
-            >
-              Calls again
-            </Button>
-          </div>
+            </div>
+          </Card>
         </li>
       ))}
     </ul>
@@ -158,19 +155,15 @@ function ReplyForm({
         run(() => practiceReply(from, callId, body));
       }}
     >
-      <label htmlFor="practice-reply" className="text-sm font-medium text-ink">
-        Reply as the caller
-      </label>
-      <input
-        id="practice-reply"
+      <Input
+        label="Reply as the caller"
+        hint="Try STOP, START or HELP too."
         value={reply}
         onChange={(e) => setReply(e.target.value)}
         maxLength={320}
         autoComplete="off"
         placeholder="leaking water heater, garage"
-        className="min-h-tap w-full rounded-brand border border-border bg-surface px-3 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       />
-      <p className="text-xs text-muted">Try STOP, START or HELP too.</p>
       <Button type="submit" size="sm" loading={pending} data-testid="practice-send-reply">
         Send reply
       </Button>
@@ -200,7 +193,8 @@ export function PracticePanel({
 
   return (
     <section className="space-y-4" aria-labelledby="practice-title" data-testid="practice-panel">
-      <div className="space-y-1 rounded-brand border border-border bg-surface p-4">
+      <Card accent className="space-y-1">
+        <Eyebrow>Practice</Eyebrow>
         <h2 id="practice-title" className="text-lg font-semibold">
           Practice mode
         </h2>
@@ -208,7 +202,7 @@ export function PracticePanel({
           Practice mode — nothing is texted to anyone. Your real number isn&apos;t set up yet. Play
           the customer below to see what a missed call does.
         </p>
-      </div>
+      </Card>
 
       <div className="flex flex-wrap gap-3">
         <Button

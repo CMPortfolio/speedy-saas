@@ -20,7 +20,7 @@ export function Phone({ title, received, messages, empty, testId }: PhoneProps) 
     <section
       aria-label={title}
       data-testid={testId}
-      className="mx-auto w-full max-w-xs space-y-2 rounded-[2rem] border-4 border-ink/80 bg-surface p-3"
+      className="mx-auto w-full max-w-xs space-y-2 rounded-[2rem] border-4 border-navy bg-surface p-3"
     >
       <h3 className="text-center text-sm font-semibold text-muted">
         {title} <span className="font-normal">· Practice</span>
@@ -39,7 +39,7 @@ export function Phone({ title, received, messages, empty, testId }: PhoneProps) 
                 data-direction={m.direction}
                 className={cn(
                   'max-w-[85%] whitespace-pre-line rounded-2xl px-3 py-2 text-sm',
-                  incoming ? 'bg-background text-ink' : 'bg-primary text-primary-foreground',
+                  incoming ? 'bg-brand-soft text-ink' : 'bg-primary text-primary-foreground',
                 )}
               >
                 {m.body}

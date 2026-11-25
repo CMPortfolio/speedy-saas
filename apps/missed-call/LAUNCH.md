@@ -57,22 +57,25 @@ a certificate issued. HTTPS must work before you give Twilio the webhook URLs.
 
 ### Environment variables
 
-| Variable                        | Required            | Production value / notes                                                                                                                       |
-| ------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | yes                 | `https://rxcuuhzwgwnfbfboujak.supabase.co`                                                                                                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes                 | the project's anon key                                                                                                                         |
-| `SUPABASE_SERVICE_ROLE_KEY`     | yes                 | server only. Webhooks write with it after the signature check. Never `NEXT_PUBLIC_`.                                                           |
-| `APP_URL`                       | yes                 | `https://missed-call.naplesaiagency.com` (its default is localhost)                                                                            |
-| `SMS_WEBHOOK_PUBLIC_URL`        | **yes**             | `https://missed-call.naplesaiagency.com`. Twilio signs the exact URL; without this the app refuses to answer webhooks (500) rather than guess. |
-| `SMS_PROVIDER`                  | yes                 | `twilio`. `fake` is refused in production and on Railway.                                                                                      |
-| `TWILIO_ACCOUNT_SID`            | yes                 | `AC...` from the Twilio console                                                                                                                |
-| `TWILIO_AUTH_TOKEN`             | yes                 | server only. Sends texts and signs every webhook.                                                                                              |
-| `TWILIO_MESSAGING_SERVICE_SID`  | optional            | `MG...`. When set, texts go out through the Messaging Service, which is what A2P registration attaches to.                                     |
-| `AUTH_COOKIE_DOMAIN`            | yes                 | `.naplesaiagency.com` (one sign-in across tools)                                                                                               |
-| `LOG_LEVEL`                     | optional            | `info` (default)                                                                                                                               |
-| `PORT`                          | set by Railway      | do not set                                                                                                                                     |
-| `NODE_ENV`                      | set by `next start` | `production`                                                                                                                                   |
-| `ALLOW_FAKE_SMS`                | **never**           | local e2e only; it is refused on Railway and for any non-local `APP_URL`                                                                       |
+| Variable                         | Required             | Production value / notes                                                                                                                                 |
+| -------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       | yes                  | `https://rxcuuhzwgwnfbfboujak.supabase.co`                                                                                                               |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | yes                  | the project's anon key                                                                                                                                   |
+| `SUPABASE_SERVICE_ROLE_KEY`      | yes                  | server only. Webhooks write with it after the signature check. Never `NEXT_PUBLIC_`.                                                                     |
+| `APP_URL`                        | yes                  | `https://missed-call.naplesaiagency.com` (its default is localhost)                                                                                      |
+| `SMS_WEBHOOK_PUBLIC_URL`         | **yes**              | `https://missed-call.naplesaiagency.com`. Twilio signs the exact URL; without this the app refuses to answer webhooks (500) rather than guess.           |
+| `SMS_PROVIDER`                   | yes                  | `twilio`. `fake` is refused in production and on Railway.                                                                                                |
+| `TWILIO_ACCOUNT_SID`             | yes                  | `AC...` from the Twilio console                                                                                                                          |
+| `TWILIO_AUTH_TOKEN`              | yes                  | server only. Sends texts and signs every webhook.                                                                                                        |
+| `TWILIO_MESSAGING_SERVICE_SID`   | optional             | `MG...`. When set, texts go out through the Messaging Service, which is what A2P registration attaches to.                                               |
+| `AUTH_COOKIE_DOMAIN`             | yes                  | `.naplesaiagency.com` (one sign-in across tools)                                                                                                         |
+| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | yes                  | `.naplesaiagency.com`, the same value for the browser client. `NEXT_PUBLIC_*` is baked in at build time, so set it in Railway **before the build runs**. |
+| `LOG_LEVEL`                      | optional             | `info` (default)                                                                                                                                         |
+| `RAILWAY_ENVIRONMENT`            | set by Railway       | do not set. Its presence makes the app refuse the fake SMS provider and refuse to guess the webhook URL.                                                 |
+| `SKIP_ENV_VALIDATION`, `CI`      | **never** on Railway | build and test switches only: `SKIP_ENV_VALIDATION=1` skips env checks in a CI build, `CI=1` makes the e2e fail instead of skip.                         |
+| `PORT`                           | set by Railway       | do not set                                                                                                                                               |
+| `NODE_ENV`                       | set by `next start`  | `production`                                                                                                                                             |
+| `ALLOW_FAKE_SMS`                 | **never**            | local e2e only; it is refused on Railway and for any non-local `APP_URL`                                                                                 |
 
 ## 3. Twilio
 

@@ -23,7 +23,7 @@
     "dev": { "cache": false, "persistent": true },
     "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
     "lint": { "dependsOn": ["^lint"], "outputs": [] },
-    "test": { "dependsOn": ["^test"], "outputs": ["coverage/**"] },
+    "test": { "dependsOn": ["^test"], "outputs": [] },
     "test:e2e": { "dependsOn": ["build"], "cache": false, "outputs": ["playwright-report/**"] },
     "clean": { "cache": false }
   }

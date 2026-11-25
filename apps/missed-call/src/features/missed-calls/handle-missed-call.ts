@@ -1,6 +1,7 @@
 import { logger } from '@speedy/lib/logger';
 import { isUsDomesticPhone, maskUsPhone } from '@speedy/lib/phone';
 import type { CallStatusEvent, SmsProvider } from '@speedy/sms/provider';
+import { withOptOutFooter } from '@speedy/sms/keywords';
 import { sendFirstOrFollowup } from '@speedy/sms/send';
 import { twimlHangup, twimlSay } from '@speedy/sms/twilio';
 
@@ -17,6 +18,11 @@ export interface MissedCallDeps {
   store: MissedCallStore;
   now?: () => Date;
   sendTimeoutMs?: number;
+  /**
+   * Keep a task alive after the response has gone out (Next's `after()`). Used to record a text
+   * that finished after the send timeout.
+   */
+  defer?: (task: Promise<unknown>) => void;
 }
 
 /** The statuses that mean "the owner did not pick up". `ringing` is the first ring of a direct or forwarded call. */
@@ -33,8 +39,6 @@ function greeting(businessName: string, texting: boolean): string {
     ? `${hello} We are sending you a text right now.`
     : `${hello} Please try again soon.`;
 }
-
-type SendOutcome = 'sent' | 'failed' | 'unknown';
 
 /**
  * Called from the voice webhook once the provider signature has been verified. Logs the missed
@@ -68,9 +72,13 @@ export async function handleMissedCall(
   if (logged.outcome === 'rate_limited') {
     log.warn('auto-text cap reached for line', { line: line.id });
   }
+  // A retried webhook means the first one already texted, so it hears the same greeting.
+  if (logged.outcome === 'duplicate') return twimlSay(greeting(line.businessName, true));
   if (logged.outcome !== 'send') return twimlSay(greeting(line.businessName, false));
 
   const body = pickTemplate(line, now);
+  // What the caller actually receives: the first text to a number also carries the opt-out line.
+  const sentBody = logged.firstContact ? withOptOutFooter(body, line.businessName) : body;
   const sending = sendFirstOrFollowup(provider, store.optOuts(line.id), {
     to: event.from,
     from: line.providerNumber,
@@ -86,24 +94,39 @@ export async function handleMissedCall(
   const result = await Promise.race([sending, timeout]);
   clearTimeout(timer);
 
-  let outcome: SendOutcome;
-  if (result === 'timeout') {
-    // The text may still go out. Keep the claim so a retry cannot text the caller twice.
-    log.error('text send timed out', { line: line.id, caller: maskUsPhone(event.from) });
-    outcome = 'unknown';
-  } else if (result.ok) {
-    outcome = 'sent';
-    try {
-      await store.recordTextSent(logged.callId, body, result.value.providerMessageId);
-    } catch (e) {
-      // The text is out; answering 500 would only make the provider retry a call we already handled.
-      log.error('text sent but not recorded', { line: line.id, error: e });
+  const settle = async (res: Awaited<typeof sending>): Promise<boolean> => {
+    if (res.ok) {
+      try {
+        await store.recordTextSent(logged.callId, sentBody, res.value.providerMessageId);
+      } catch (e) {
+        // The text is out; failing the webhook would only make the provider retry a handled call.
+        log.error('text sent but not recorded', { line: line.id, error: e });
+      }
+      return true;
     }
+    log.warn('auto-text not sent', { line: line.id, code: res.error.code });
+    try {
+      await store.releaseTextClaim(logged.callId);
+    } catch (e) {
+      log.error('could not release the text claim', { line: line.id, error: e });
+    }
+    return false;
+  };
+
+  let texting: boolean;
+  if (result === 'timeout') {
+    // The text may still go out. Keep the claim so a retry cannot text the caller twice, and
+    // record or release it when the provider finally answers.
+    log.error('text send timed out', { line: line.id, caller: maskUsPhone(event.from) });
+    const late = sending.then(settle, (e: unknown) => {
+      log.error('late text send threw', { line: line.id, error: e });
+      return false;
+    });
+    deps.defer?.(late);
+    texting = true;
   } else {
-    log.warn('auto-text not sent', { line: line.id, code: result.error.code });
-    await store.releaseTextClaim(logged.callId);
-    outcome = 'failed';
+    texting = await settle(result);
   }
 
-  return twimlSay(greeting(line.businessName, outcome !== 'failed'));
+  return twimlSay(greeting(line.businessName, texting));
 }

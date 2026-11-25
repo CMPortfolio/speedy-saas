@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createServiceSupabase } from '@speedy/auth/server';
+import { after } from 'next/server';
 
 import { getSms } from '@/config/sms';
 import { supabaseStore } from '@/features/missed-calls/store';
@@ -16,5 +17,6 @@ export function POST(request: Request) {
   return handleVoiceWebhook(request, {
     provider: getSms(),
     getStore: () => supabaseStore(createServiceSupabase()),
+    defer: (task) => after(task),
   });
 }

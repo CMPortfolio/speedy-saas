@@ -86,6 +86,8 @@ describe('isUsDomesticPhone', () => {
     ['+15005550123', 'personal numbers'],
     ['+442079460958', 'UK'],
     ['not a phone', 'junk'],
+    ['restricted', 'hidden caller id that is ten keypad letters'],
+    ['1-800-FLOWERS', 'vanity number'],
     ['', 'empty'],
   ])('rejects %s (%s)', (input) => {
     expect(isUsDomesticPhone(input)).toBe(false);

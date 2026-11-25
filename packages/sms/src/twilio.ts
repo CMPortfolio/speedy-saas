@@ -142,8 +142,15 @@ function ignored(why: string) {
 }
 
 function phones(params: FormParams): Result<{ from: E164; to: E164 }> {
-  const from = normalizeUsPhone(first(params, 'From') ?? '');
-  const to = normalizeUsPhone(first(params, 'To') ?? '');
+  // Twilio always sends real numbers as +E.164. Anything else ("anonymous", "restricted",
+  // "+266696687") is a hidden caller id, and must not go through normalizeUsPhone, which would turn
+  // letters into keypad digits and invent a number.
+  const raw = (key: string) => {
+    const v = first(params, key) ?? '';
+    return /^\+1\d{10}$/.test(v) ? v : '';
+  };
+  const from = normalizeUsPhone(raw('From'));
+  const to = normalizeUsPhone(raw('To'));
   if (!from || !to) return ignored(`non-US or missing From/To`);
   return ok({ from, to });
 }

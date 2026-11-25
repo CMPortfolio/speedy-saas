@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_TIMEZONE, isQuietNow, parseQuietHours } from './quiet-hours';
+import {
+  DEFAULT_TIMEZONE,
+  isQuietNow,
+  parseQuietHours,
+} from '../../src/features/missed-calls/quiet-hours';
 
 // 2026-07-15 is a Wednesday in EDT (UTC-4); 2026-01-14 is a Wednesday in EST (UTC-5).
 const at = (iso: string) => new Date(iso);

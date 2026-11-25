@@ -218,6 +218,31 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       expect(res.rowCount).toBeGreaterThan(0);
     });
 
+    it('log_missed_call: the cooldown ends exactly at 24 hours', async () => {
+      if (!db) return;
+      const caller = '+12395550890';
+      const run = (sid: string) =>
+        db!.asService(async (c) => {
+          const r = await c.query<{ call_id: string; outcome: string }>(
+            'select * from missed_call.log_missed_call($1, $2, $3)',
+            [aliceLine, caller, sid],
+          );
+          return r.rows[0]!;
+        });
+      const first = await run(`CA-edge1-${RUN}`);
+      const setAge = (age: string) =>
+        db!.asService((c) =>
+          c.query('update missed_call.calls set texted_at = now() - $2::interval where id = $1', [
+            first.call_id,
+            age,
+          ]),
+        );
+      await setAge('23:59:59');
+      expect((await run(`CA-edge2-${RUN}`)).outcome).toBe('cooldown');
+      await setAge('24:00:01');
+      expect((await run(`CA-edge3-${RUN}`)).outcome).toBe('send');
+    });
+
     it('log_missed_call: send, then cooldown, duplicate sid and blocked', async () => {
       if (!db) return;
       const caller = '+12395550888';

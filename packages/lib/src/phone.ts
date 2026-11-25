@@ -98,6 +98,9 @@ export function firstName(fullName: string): string {
  * and Caribbean countries that are billed internationally and used for SMS-pumping fraud.
  */
 export function isUsDomesticPhone(input: string): boolean {
+  // normalizeUsPhone maps letters to keypad digits (1-800-FLOWERS), which turns a caller id such
+  // as "restricted" into a real-looking number. Never accept letters here.
+  if (/[a-z]/i.test(input)) return false;
   const e164 = normalizeUsPhone(input);
   return e164 !== null && US_AREA_CODES.has(e164.slice(2, 5));
 }

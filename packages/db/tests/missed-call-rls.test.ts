@@ -254,5 +254,153 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       );
       expect((await run(`CA-blocked-${RUN}`, '+12395550889')).outcome).toBe('blocked');
     });
+
+    it('record_reply: attaches to the latest call, sets replied, ignores retries and blocked', async () => {
+      if (!db) return;
+      const caller = '+12395550444';
+      const log = (sid: string) =>
+        db!.asService((c) =>
+          c.query('select * from missed_call.log_missed_call($1, $2, $3)', [
+            aliceLine,
+            caller,
+            sid,
+          ]),
+        );
+      await log(`CA-r1-${RUN}`);
+      await db.asService((c) =>
+        c.query(
+          "update missed_call.calls set received_at = now() - interval '1 hour' where provider_call_sid = $1",
+          [`CA-r1-${RUN}`],
+        ),
+      );
+      const second = (await log(`CA-r2-${RUN}`)).rows[0] as { call_id: string };
+      const reply = (body: string, id: string | null, who = caller) =>
+        db!.asService(async (c) => {
+          const r = await c.query<{ call_id: string | null; outcome: string }>(
+            'select * from missed_call.record_reply($1, $2, $3, $4)',
+            [aliceLine, who, body, id],
+          );
+          return r.rows[0]!;
+        });
+      const first = await reply('leaking water heater', `SM-${RUN}-1`);
+      expect(first).toEqual({ call_id: second.call_id, outcome: 'recorded' });
+      expect((await reply('leaking water heater', `SM-${RUN}-1`)).outcome).toBe('duplicate');
+      const status = await db.pool.query('select status from missed_call.calls where id = $1', [
+        second.call_id,
+      ]);
+      expect(status.rows[0]).toEqual({ status: 'replied' });
+      const count = await db.pool.query(
+        "select count(*)::int as n from missed_call.messages where call_id = $1 and direction = 'in'",
+        [second.call_id],
+      );
+      expect(count.rows[0]).toEqual({ n: 1 });
+      expect((await reply('hello', `SM-${RUN}-2`, '+12395550445')).outcome).toBe('no_call');
+      await db.asService((c) =>
+        c.query('insert into missed_call.blocked_numbers (line_id, number) values ($1, $2)', [
+          aliceLine,
+          '+12395550446',
+        ]),
+      );
+      await log(`CA-r3-${RUN}`);
+      expect((await reply('hi', `SM-${RUN}-3`, '+12395550446')).outcome).toBe('blocked');
+    });
+
+    it('record_reply keeps a status the owner already set', async () => {
+      if (!db) return;
+      const caller = '+12395550447';
+      const logged = await db.asService((c) =>
+        c.query<{ call_id: string }>('select * from missed_call.log_missed_call($1, $2, $3)', [
+          aliceLine,
+          caller,
+          `CA-keep-${RUN}`,
+        ]),
+      );
+      const id = logged.rows[0]!.call_id;
+      await db.asService((c) =>
+        c.query("update missed_call.calls set status = 'booked' where id = $1", [id]),
+      );
+      await db.asService((c) =>
+        c.query('select * from missed_call.record_reply($1, $2, $3, $4)', [
+          aliceLine,
+          caller,
+          'see you at 3',
+          `SM-${RUN}-keep`,
+        ]),
+      );
+      const row = await db.pool.query('select status from missed_call.calls where id = $1', [id]);
+      expect(row.rows[0]).toEqual({ status: 'booked' });
+    });
+
+    it('record_reply is not callable by owners or anon', async () => {
+      if (!db) return;
+      const call = (c: { query: (q: string, v: unknown[]) => Promise<unknown> }) =>
+        c.query('select * from missed_call.record_reply($1, $2, $3, $4)', [
+          aliceLine,
+          CALLER,
+          'x',
+          null,
+        ]);
+      await expect(db.as(alice, call)).rejects.toSatisfy(isDenied);
+      await expect(db.as(null, call)).rejects.toSatisfy(isDenied);
+    });
+
+    it('mark_call: Junk blocks the number, undoing it lifts the block, STOP blocks stay', async () => {
+      if (!db) return;
+      const caller = '+12395550448';
+      const id = (
+        await db.asService((c) =>
+          c.query<{ call_id: string }>('select * from missed_call.log_missed_call($1, $2, $3)', [
+            aliceLine,
+            caller,
+            `CA-junk-${RUN}`,
+          ]),
+        )
+      ).rows[0]!.call_id;
+      const blocked = () =>
+        db!.pool.query(
+          'select reason from missed_call.blocked_numbers where line_id = $1 and number = $2',
+          [aliceLine, caller],
+        );
+
+      await db.asCommitted(alice, (c) => c.query("select missed_call.mark_call($1, 'junk')", [id]));
+      expect((await blocked()).rows).toEqual([{ reason: 'junk' }]);
+      const again = await db.asService((c) =>
+        c.query<{ outcome: string }>('select * from missed_call.log_missed_call($1, $2, $3)', [
+          aliceLine,
+          caller,
+          `CA-junk2-${RUN}`,
+        ]),
+      );
+      expect(again.rows[0]?.outcome).toBe('blocked');
+
+      await db.asCommitted(alice, (c) =>
+        c.query("select missed_call.mark_call($1, 'called_back')", [id]),
+      );
+      expect((await blocked()).rowCount).toBe(0);
+
+      await db.asService((c) =>
+        c.query(
+          "insert into missed_call.blocked_numbers (line_id, number, reason) values ($1, $2, 'opted_out')",
+          [aliceLine, caller],
+        ),
+      );
+      await db.asCommitted(alice, (c) =>
+        c.query("select missed_call.mark_call($1, 'booked')", [id]),
+      );
+      expect((await blocked()).rows).toEqual([{ reason: 'opted_out' }]);
+    });
+
+    it('mark_call only touches the owner own calls and only the three owner statuses', async () => {
+      if (!db) return;
+      await expect(
+        db.as(bob, (c) => c.query("select missed_call.mark_call($1, 'junk')", [aliceCall])),
+      ).rejects.toMatchObject({ code: 'P0002' });
+      await expect(
+        db.as(alice, (c) => c.query("select missed_call.mark_call($1, 'replied')", [aliceCall])),
+      ).rejects.toMatchObject({ code: '22023' });
+      await expect(
+        db.as(null, (c) => c.query("select missed_call.mark_call($1, 'junk')", [aliceCall])),
+      ).rejects.toSatisfy(isDenied);
+    });
   },
 );

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 /** Refreshes the Supabase session on every request. Add paths that need sign-in to protectedPaths. */
 export function proxy(request: NextRequest) {
-  return updateSession(request, { protectedPaths: [] });
+  return updateSession(request, { protectedPaths: ['/calls'] });
 }
 
 export const config = {

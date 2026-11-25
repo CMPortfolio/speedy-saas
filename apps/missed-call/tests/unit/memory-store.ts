@@ -19,8 +19,12 @@ export interface MemoryCall {
 
 export function memoryStore(lines: LineRecord[], now: () => Date = () => new Date()) {
   const calls: MemoryCall[] = [];
-  const messages: { callId: string; direction: 'out'; body: string; providerMessageId: string }[] =
-    [];
+  const messages: {
+    callId: string;
+    direction: 'in' | 'out';
+    body: string;
+    providerMessageId: string;
+  }[] = [];
   const blocked = new Map<string, string>();
   const key = (lineId: string, n: string) => `${lineId}:${n}`;
   let touched = 0;
@@ -62,6 +66,18 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
       if (call) call.status = 'texted';
       messages.push({ callId, direction: 'out', body, providerMessageId });
     },
+    async recordReply(lineId, caller, body, providerMessageId) {
+      touched += 1;
+      const dup = messages.find((m) => m.providerMessageId === providerMessageId);
+      if (dup) return { callId: dup.callId, outcome: 'duplicate' };
+      if (blocked.has(key(lineId, caller))) return { callId: null, outcome: 'blocked' };
+      const latest = calls.filter((c) => c.lineId === lineId && c.caller === caller).at(-1);
+      if (!latest) return { callId: null, outcome: 'no_call' };
+      messages.push({ callId: latest.id, direction: 'in', body, providerMessageId });
+      if (latest.status === 'missed' || latest.status === 'texted') latest.status = 'replied';
+      return { callId: latest.id, outcome: 'recorded' };
+    },
+
     async releaseTextClaim(callId) {
       touched += 1;
       const call = calls.find((c) => c.id === callId);

@@ -19,6 +19,13 @@ export interface LineRecord {
 
 export type LogOutcome = 'send' | 'duplicate' | 'cooldown' | 'blocked';
 
+export type ReplyOutcome = 'recorded' | 'duplicate' | 'blocked' | 'no_call';
+
+export interface ReplyResult {
+  callId: string | null;
+  outcome: ReplyOutcome;
+}
+
 export interface LogResult {
   callId: string;
   outcome: LogOutcome;
@@ -38,6 +45,16 @@ export interface MissedCallStore {
   recordTextSent(callId: string, body: string, providerMessageId: string): Promise<void>;
   /** The send failed: free the cooldown so the caller's next call can still be texted. */
   releaseTextClaim(callId: string): Promise<void>;
+  /**
+   * Attach an inbound text to the latest call from that number on that line and mark it replied.
+   * See missed_call.record_reply. Retried webhooks come back as `duplicate`.
+   */
+  recordReply(
+    lineId: string,
+    caller: E164,
+    body: string,
+    providerMessageId: string,
+  ): Promise<ReplyResult>;
   /** Blocked numbers (Junk) and STOP replies for one line. */
   optOuts(lineId: string): OptOutStore;
 }
@@ -110,6 +127,18 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
         .eq('id', callId)
         .eq('status', 'missed');
       if (upd.error) fail('mark call texted', upd.error.message);
+    },
+
+    async recordReply(lineId, caller, body, providerMessageId) {
+      const { data, error } = await db.rpc('record_reply', {
+        p_line_id: lineId,
+        p_caller: caller,
+        p_body: body,
+        p_provider_message_id: providerMessageId,
+      });
+      const row = data?.[0];
+      if (error || !row) fail('record reply', error?.message);
+      return { callId: row.call_id, outcome: row.outcome as ReplyOutcome };
     },
 
     async releaseTextClaim(callId) {

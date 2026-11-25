@@ -39,3 +39,8 @@ test('open graph image renders', async ({ request }) => {
   expect(res.ok()).toBe(true);
   expect(res.headers()['content-type']).toContain('image/png');
 });
+
+test('the missed calls list needs a sign-in', async ({ page }) => {
+  await page.goto('/calls');
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Fcalls/);
+});

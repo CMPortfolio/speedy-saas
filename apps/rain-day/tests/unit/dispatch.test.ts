@@ -1,9 +1,12 @@
-import { fakeProvider } from '@speedy/sms/fake';
 import { appError } from '@speedy/lib/result';
+import { fakeProvider } from '@speedy/sms/fake';
+import type { SendTextInput, SmsProvider } from '@speedy/sms/provider';
 import { describe, expect, it } from 'vitest';
 
 import {
   dispatchMessages,
+  MAX_CONCURRENT_SENDS,
+  type DispatchResult,
   type DispatchRow,
   type DispatchStore,
 } from '@/features/rain-day/dispatch';
@@ -16,10 +19,7 @@ function setup(n: number, optedOut: string[] = []) {
     body: `Hi Customer${i}, moving you to Wednesday.`,
     isFirstContact: true,
   }));
-  const updates = new Map<
-    string,
-    { status: string; providerMessageId?: string; errorCode?: string }
-  >();
+  const updates = new Map<string, DispatchResult>();
   const store: DispatchStore = {
     async isOptedOut(phone) {
       return optedOut.includes(phone);
@@ -43,13 +43,33 @@ describe('dispatchMessages', () => {
       for (const other of rows) {
         if (other.phone !== s.to) expect(s.body).not.toContain(other.phone);
       }
-      // One recipient per text: no group thread, no list in the number.
       expect(s.to).toMatch(/^\+1\d{10}$/);
     }
     expect(out).toEqual({ sent: 15, failed: 0, skipped: 0 });
-    expect([...updates.values()].every((u) => u.status === 'sent' && u.providerMessageId)).toBe(
-      true,
-    );
+    expect([...updates.values()].every((u) => u.status === 'sent')).toBe(true);
+  });
+
+  it('never has more than MAX_CONCURRENT_SENDS texts in flight', async () => {
+    const { rows, store } = setup(40);
+    let inFlight = 0;
+    let peak = 0;
+    const counting: SmsProvider = {
+      name: 'counting',
+      async sendText(input: SendTextInput) {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 2));
+        inFlight -= 1;
+        return { ok: true, value: { providerMessageId: `ID-${input.to}` } };
+      },
+      parseInbound: () => ({ ok: false, error: appError('invalid_webhook', 'n/a') }),
+      verifySignature: () => false,
+    };
+    const out = await dispatchMessages({ provider: counting, store, rows, ...base });
+    expect(out.sent).toBe(40);
+    expect(MAX_CONCURRENT_SENDS).toBe(5);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(MAX_CONCURRENT_SENDS);
   });
 
   it('skips a customer who opted out since the list was made and does not text them', async () => {
@@ -57,8 +77,17 @@ describe('dispatchMessages', () => {
     const out = await dispatchMessages({ provider, store, rows, ...base });
     expect(provider.sent.map((s) => s.to)).not.toContain('+12395551002');
     expect(provider.sent).toHaveLength(4);
-    expect(updates.get('m2')).toEqual({ status: 'skipped' });
+    expect(updates.get('m2')).toEqual({ status: 'skipped', errorCode: 'opted_out' });
     expect(out).toEqual({ sent: 4, failed: 0, skipped: 1 });
+  });
+
+  it('does not text a number outside the US even if one got into the rows', async () => {
+    const { rows, store, provider, updates } = setup(2);
+    rows[0] = { ...rows[0]!, phone: '+14165550123' };
+    const out = await dispatchMessages({ provider, store, rows, ...base });
+    expect(provider.sent.map((s) => s.to)).toEqual(['+12395551001']);
+    expect(updates.get('m0')).toEqual({ status: 'skipped', errorCode: 'non_us' });
+    expect(out.skipped).toBe(1);
   });
 
   it('marks a failed send as failed with its code and keeps going', async () => {
@@ -68,6 +97,20 @@ describe('dispatchMessages', () => {
     expect(updates.get('m0')).toEqual({ status: 'failed', errorCode: 'invalid_number' });
     expect(provider.sent).toHaveLength(2);
     expect(out).toEqual({ sent: 2, failed: 1, skipped: 0 });
+  });
+
+  it('marks a row failed (internal) when the opt-out lookup throws, and still texts the rest', async () => {
+    const { rows, store, provider, updates } = setup(4);
+    const lookup = store.isOptedOut;
+    store.isOptedOut = async (phone) => {
+      if (phone === '+12395551001') throw new Error('db down');
+      return lookup(phone);
+    };
+    const out = await dispatchMessages({ provider, store, rows, ...base });
+    expect(updates.get('m1')).toEqual({ status: 'failed', errorCode: 'internal' });
+    expect(provider.sent).toHaveLength(3);
+    expect(provider.sent.map((s) => s.to)).not.toContain('+12395551001');
+    expect(out).toEqual({ sent: 3, failed: 1, skipped: 0 });
   });
 
   it('adds the opt-out line on first contact only', async () => {
@@ -83,7 +126,7 @@ describe('dispatchMessages', () => {
     let calls = 0;
     store.markResult = async () => {
       calls += 1;
-      if (calls === 1) throw new Error('db down');
+      if (calls === 1) throw Object.assign(new Error('db down'), { code: 'XX000' });
     };
     const out = await dispatchMessages({ provider, store, rows, ...base, concurrency: 1 });
     expect(provider.sent).toHaveLength(3);

@@ -1,14 +1,10 @@
-import { getSms, isFakeSms } from '@/config/sms';
-import { env } from '@/config/env';
+import { devSmsGuard } from '@/lib/dev-guard';
 
 export const dynamic = 'force-dynamic';
 
-/** Dev only: the texts the fake provider has "sent". 404 unless SMS_PROVIDER=fake outside production. */
-export function GET() {
-  if (env.SMS_PROVIDER !== 'fake' || env.NODE_ENV === 'production') {
-    return new Response('Not found', { status: 404 });
-  }
-  const provider = getSms();
-  if (!isFakeSms(provider)) return new Response('Not found', { status: 404 });
-  return Response.json({ sent: provider.sent });
+/** Dev only, signed-in only: the texts the fake provider has "sent". */
+export async function GET() {
+  const guard = await devSmsGuard();
+  if ('response' in guard) return guard.response;
+  return Response.json({ sent: guard.provider.sent });
 }

@@ -4,7 +4,8 @@ import { createServerSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { getProfile } from '@speedy/db/core';
 
-import { listCustomersForDay } from '@/features/rain-day/queries';
+import { skipReason } from '@/features/rain-day/plan';
+import { listCustomersForDay, listOptedOutPhones } from '@/features/rain-day/queries';
 import { RainDayForm } from '@/features/rain-day/rain-day-form';
 import { defaultTemplate } from '@/features/rain-day/template';
 import { addDays, isIsoDate, todayInNewYork, weekdayOf } from '@/lib/dates';
@@ -21,9 +22,10 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
   const to = params.to && isIsoDate(params.to) ? params.to : addDays(from, 1);
 
   const supabase = await createServerSupabase();
-  const [customers, profile] = await Promise.all([
+  const [customers, profile, optedOut] = await Promise.all([
     listCustomersForDay(supabase, weekdayOf(from)),
     getProfile(supabase, user.id),
+    listOptedOutPhones(supabase),
   ]);
 
   return (
@@ -44,7 +46,7 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
           id: c.id,
           name: c.name,
           phone: c.phone,
-          opted_out: c.opted_out,
+          skip: skipReason(c, optedOut),
         }))}
         initialTemplate={defaultTemplate(profile?.business_name ?? '')}
       />

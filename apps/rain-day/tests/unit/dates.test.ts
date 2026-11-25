@@ -9,6 +9,16 @@ describe('dates', () => {
     expect(todayInNewYork(new Date('2026-11-25T15:00:00Z'))).toBe('2026-11-25');
   });
 
+  it('keeps the New York date right across the daylight-saving changes', () => {
+    // Spring forward 2026-03-08 at 02:00 EST (07:00Z); fall back 2026-11-01 at 02:00 EDT (06:00Z).
+    expect(todayInNewYork(new Date('2026-03-08T06:30:00Z'))).toBe('2026-03-08');
+    expect(todayInNewYork(new Date('2026-03-08T04:59:00Z'))).toBe('2026-03-07');
+    expect(todayInNewYork(new Date('2026-03-09T03:59:00Z'))).toBe('2026-03-08');
+    expect(todayInNewYork(new Date('2026-11-01T04:30:00Z'))).toBe('2026-11-01');
+    expect(todayInNewYork(new Date('2026-11-01T03:59:00Z'))).toBe('2026-10-31');
+    expect(todayInNewYork(new Date('2026-11-02T04:59:00Z'))).toBe('2026-11-01');
+  });
+
   it('adds days across month ends', () => {
     expect(addDays('2026-11-30', 1)).toBe('2026-12-01');
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01');

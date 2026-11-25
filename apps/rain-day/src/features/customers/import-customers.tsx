@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useId, useMemo, useState } from 'react';
 
-import { formatUsPhone, normalizeUsPhone } from '@speedy/lib/phone';
+import { formatUsPhone, isUsDomesticPhone, normalizeUsPhone } from '@speedy/lib/phone';
 import { CsvImport } from '@speedy/ui/csv-import';
 import type { AcceptedRow, RowValidators } from '@speedy/ui/csv';
 
@@ -29,7 +29,8 @@ export function ImportCustomers({ existingPhones }: { existingPhones: string[] }
 
   const validators = useMemo<RowValidators<Phone, ServiceDay>>(
     () => ({
-      phone: normalizeUsPhone,
+      // US area codes only: Canada and the Caribbean are billed as international.
+      phone: (value: string) => (isUsDomesticPhone(value) ? normalizeUsPhone(value) : null),
       day: parseWeekday,
       existingPhones: new Set(existingPhones as Phone[]),
     }),

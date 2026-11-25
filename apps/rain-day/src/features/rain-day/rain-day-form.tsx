@@ -45,8 +45,8 @@ export function RainDayForm({
   const [error, setError] = useState<string | null>(null);
 
   const newDay = describeNewDay(to, today);
-  const sendable = customers.filter((c) => !c.opted_out && !unticked.has(c.id));
-  const skipped = customers.filter((c) => c.opted_out).length;
+  const sendable = customers.filter((c) => !c.skip && !unticked.has(c.id));
+  const skipped = customers.filter((c) => c.skip).length;
   const dateError =
     from === to ? 'Pick a different day.' : to < today ? 'Pick today or later.' : undefined;
   const canSend = sendable.length > 0 && template.trim() !== '' && !dateError;
@@ -71,12 +71,13 @@ export function RainDayForm({
         from,
         to,
         template,
-        // Opted-out customers go along so the send records them as skipped.
-        customerIds: customers.filter((c) => c.opted_out || !unticked.has(c.id)).map((c) => c.id),
+        // Skipped customers go along so the send records them as skipped.
+        customerIds: customers.filter((c) => c.skip || !unticked.has(c.id)).map((c) => c.id),
       });
       setConfirming(false);
-      if (result.ok) router.push(`/rain-day/${result.rescheduleId}`);
-      else setError(result.message);
+      // Also when the rain day was saved but the texts did not start: the page shows who was not texted.
+      if (result.rescheduleId) router.push(`/rain-day/${result.rescheduleId}`);
+      else setError(result.ok ? null : result.message);
     });
   }
 
@@ -122,7 +123,7 @@ export function RainDayForm({
                 <CustomerRow
                   key={c.id}
                   customer={c}
-                  ticked={!c.opted_out && !unticked.has(c.id)}
+                  ticked={!c.skip && !unticked.has(c.id)}
                   newDay={newDay}
                   template={template}
                   onToggle={toggle}

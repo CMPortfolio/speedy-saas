@@ -43,9 +43,27 @@ export type Database = {
         Relationships: [];
       };
       organizations: {
-        Row: { id: string; name: string; created_by: string; created_at: string; updated_at: string };
-        Insert: { id?: string; name: string; created_by: string; created_at?: string; updated_at?: string };
-        Update: { id?: string; name?: string; created_by?: string; created_at?: string; updated_at?: string };
+        Row: {
+          id: string;
+          name: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       memberships: {
@@ -166,7 +184,6 @@ export type Database = {
           phone: string;
           service_day: number;
           note: string | null;
-          opted_out: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -177,7 +194,6 @@ export type Database = {
           phone: string;
           service_day: number;
           note?: string | null;
-          opted_out?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -188,7 +204,33 @@ export type Database = {
           phone?: string;
           service_day?: number;
           note?: string | null;
-          opted_out?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      opt_outs: {
+        Row: {
+          id: string;
+          owner_id: string;
+          phone: string;
+          opted_out_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          phone: string;
+          opted_out_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          phone?: string;
+          opted_out_at?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -235,6 +277,7 @@ export type Database = {
           customer_name: string;
           body: string;
           status: string;
+          provider: string | null;
           provider_message_id: string | null;
           error_code: string | null;
           sent_at: string | null;
@@ -248,6 +291,7 @@ export type Database = {
           customer_name: string;
           body: string;
           status?: string;
+          provider?: string | null;
           provider_message_id?: string | null;
           error_code?: string | null;
           sent_at?: string | null;
@@ -261,6 +305,7 @@ export type Database = {
           customer_name?: string;
           body?: string;
           status?: string;
+          provider?: string | null;
           provider_message_id?: string | null;
           error_code?: string | null;
           sent_at?: string | null;
@@ -272,6 +317,10 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      previously_texted: {
+        Args: { p_reschedule_id: string };
+        Returns: string[];
+      };
       create_reschedule: {
         Args: {
           p_idempotency_key: string;
@@ -288,9 +337,12 @@ export type Database = {
   };
 };
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
-export type InsertOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert'];
-export type UpdateOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update'];
+export type Tables<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row'];
+export type InsertOf<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Insert'];
+export type UpdateOf<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Update'];
 
 /** Row types for a tool's own schema, e.g. `SchemaTables<'rain_day', 'customers'>`. */
 export type SchemaTables<

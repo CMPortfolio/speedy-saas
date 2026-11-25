@@ -35,7 +35,8 @@ create table rain_day.reschedule_messages (
   -- Kept (as null) if the owner later removes the customer; the name below still shows in history.
   customer_id uuid references rain_day.customers (id) on delete set null,
   customer_name text not null check (char_length(customer_name) between 1 and 120),
-  -- This customer's own text, already filled in. Never contains another customer's details.
+  -- This customer's own text, filled in, as the owner approved it. The opt-out line that goes on a
+  -- customer's first text is added when it is sent and is not stored here.
   body text not null check (char_length(body) between 1 and 1600),
   status text not null default 'queued'
     check (status in ('queued', 'sent', 'delivered', 'failed', 'replied', 'skipped')),

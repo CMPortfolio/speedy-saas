@@ -72,8 +72,8 @@ Every `process.env` read reachable from `apps/rain-day` is in this table (audite
 | `APP_URL`                        | **yes**              | `https://rain-day.naplesaiagency.com`. In production the app will not start without it: Twilio signs the exact webhook URL and it is taken from here.                                       |
 | `SMS_WEBHOOK_PUBLIC_URL`         | recommended          | `https://rain-day.naplesaiagency.com`. Set it explicitly: Twilio signs the exact URL. It falls back to `APP_URL`; with neither set in production the webhooks answer 500 rather than guess. |
 | `SMS_PROVIDER`                   | yes                  | `twilio`. `fake` is refused in production and on Railway.                                                                                                                                   |
-| `TWILIO_ACCOUNT_SID`             | yes                  | `AC...` from the Twilio console                                                                                                                                                             |
-| `TWILIO_AUTH_TOKEN`              | yes                  | server only. Sends texts and signs every webhook.                                                                                                                                           |
+| `TWILIO_ACCOUNT_SID`             | once texting is on   | `AC...` from the Twilio console. Leave unset until Twilio exists (see "Deploying before Twilio exists")                                                                                     |
+| `TWILIO_AUTH_TOKEN`              | once texting is on   | server only. Sends texts and signs every webhook.                                                                                                                                           |
 | `SMS_FROM_NUMBER`                | **leave unset**      | development default for the fake provider only. Real owners text from `rain_day.owner_settings.sender_number`.                                                                              |
 | `AUTH_COOKIE_DOMAIN`             | yes                  | `.naplesaiagency.com` (one sign-in across tools)                                                                                                                                            |
 | `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | yes                  | `.naplesaiagency.com`, the same value for the browser client. `NEXT_PUBLIC_*` is baked in at build time, so set it in Railway **before the build runs**.                                    |
@@ -84,6 +84,21 @@ Every `process.env` read reachable from `apps/rain-day` is in this table (audite
 | `NEXT_PHASE`                     | set by Next          | do not set. It lets `next build` run before `APP_URL` is needed.                                                                                                                            |
 | `SKIP_ENV_VALIDATION`, `CI`      | **never** on Railway | build and test switches only: `SKIP_ENV_VALIDATION=1` skips env checks in a CI build, `CI=1` makes the e2e fail instead of skip.                                                            |
 | `ALLOW_FAKE_SMS`                 | **never**            | local e2e only (`playwright.config.ts` sets it for its own server). It is refused on Railway, but never set it on a deployed host.                                                          |
+
+### Deploying before Twilio exists
+
+You can deploy and use the app before any Twilio account is set up:
+
+- Set `SMS_PROVIDER=twilio` and leave every `TWILIO_*` variable **unset**. Never use `fake`: it is
+  refused on Railway.
+- The app, the landing page, sign-in, customers and settings all work.
+- Send stays off for every owner (nobody has a sender number yet), with the "texting number isn't
+  set up yet" copy. Any attempt to send a text or a cell confirmation code shows "try again", because
+  the texting provider cannot start without credentials.
+- The webhooks `/api/sms/inbound` and `/api/sms/status` answer 500. That is harmless: nothing calls
+  them yet. **Do not give Twilio the webhook URLs until the credentials are set.**
+- Once Twilio exists: set `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`, redeploy, then follow
+  section 3 per owner.
 
 ## 3. Twilio
 
@@ -251,5 +266,14 @@ the pages it comes from:
 
 Redeploy the previous Railway deployment. Migrations are additive apart from `20261125300050`, which
 drops `customers.opted_out`; do not roll migrations back on the live project without checking the
-data first. To stop all texting at once, remove the Twilio numbers' messaging webhook URLs, or unset
+data first.
+
+**Do not roll the app back past the per-owner commits against a migrated database.**
+`20261125300200` and `20261125300250` replace `record_reply`, `reserve_verification_send` and
+`claim_help_reply` with new signatures and recreate `help_replies`. An app version from before
+`8deca44` / `b6619f3` still calls the old signatures, so against the migrated database inbound
+replies, HELP answers and cell confirmation codes fail. Roll back only to a deployment that already
+includes them, or roll forward with a fix.
+
+To stop all texting at once, remove the Twilio numbers' messaging webhook URLs, or unset
 `TWILIO_AUTH_TOKEN` in Railway.

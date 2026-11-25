@@ -92,4 +92,5 @@ export const TOOLS: readonly Tool[] = [
     status: 'live',
     kind: 'tool',
   },
+  // new-tool: entries are added above this line. Keep this comment.
 ];

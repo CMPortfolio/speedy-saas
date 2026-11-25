@@ -14,11 +14,14 @@
     "format:check": "prettier --check .",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
-    "clean": "turbo run clean && rm -rf node_modules/.cache"
+    "clean": "turbo run clean && rm -rf node_modules/.cache",
+    "new-tool": "tsx scripts/new-tool.ts",
+    "db:types": "pnpm --filter @speedy/db db:types"
   },
   "devDependencies": {
-    "prettier": "^3.10.1",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
     "turbo": "^2.11.13",
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   }
 }

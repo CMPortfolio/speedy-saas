@@ -18,6 +18,7 @@
     "@speedy/db": "workspace:*",
     "@speedy/lib": "workspace:*",
     "@speedy/registry": "workspace:*",
+    "@speedy/sms": "workspace:*",
     "@speedy/ui": "workspace:*",
     "@supabase/supabase-js": "catalog:",
     "next": "catalog:",

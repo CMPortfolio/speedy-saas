@@ -25,7 +25,12 @@ export default async function CustomersPage() {
         </p>
       </header>
       <div className="grid gap-2 sm:grid-cols-2">
-        <ButtonLink href="/customers/new">Add a customer</ButtonLink>
+        <ButtonLink href="/rain-day" className="sm:col-span-2">
+          Rain day
+        </ButtonLink>
+        <ButtonLink href="/customers/new" variant="secondary">
+          Add a customer
+        </ButtonLink>
         <ButtonLink href="/customers/import" variant="secondary">
           Paste or import a list
         </ButtonLink>

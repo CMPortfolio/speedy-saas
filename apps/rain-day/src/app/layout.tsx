@@ -31,6 +31,9 @@ const navLink =
 function HeaderNav() {
   return (
     <nav aria-label="Your account" className="flex items-center gap-1">
+      <Link href="/rain-day" className={navLink}>
+        Rain day
+      </Link>
       <Link href="/customers" className={navLink}>
         Customers
       </Link>

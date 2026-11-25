@@ -194,9 +194,95 @@ export type Database = {
         };
         Relationships: [];
       };
+      reschedules: {
+        Row: {
+          id: string;
+          owner_id: string;
+          from_date: string;
+          to_date: string;
+          template: string;
+          idempotency_key: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          from_date: string;
+          to_date: string;
+          template: string;
+          idempotency_key: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          from_date?: string;
+          to_date?: string;
+          template?: string;
+          idempotency_key?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      reschedule_messages: {
+        Row: {
+          id: string;
+          reschedule_id: string;
+          customer_id: string | null;
+          customer_name: string;
+          body: string;
+          status: string;
+          provider_message_id: string | null;
+          error_code: string | null;
+          sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reschedule_id: string;
+          customer_id?: string | null;
+          customer_name: string;
+          body: string;
+          status?: string;
+          provider_message_id?: string | null;
+          error_code?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          reschedule_id?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          body?: string;
+          status?: string;
+          provider_message_id?: string | null;
+          error_code?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
-    Functions: Record<never, never>;
+    Functions: {
+      create_reschedule: {
+        Args: {
+          p_idempotency_key: string;
+          p_from_date: string;
+          p_to_date: string;
+          p_template: string;
+          p_messages: Json;
+        };
+        Returns: { reschedule_id: string; created: boolean }[];
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };

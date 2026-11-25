@@ -92,5 +92,15 @@ export const TOOLS: readonly Tool[] = [
     status: 'live',
     kind: 'tool',
   },
+  {
+    slug: 'job-photos',
+    name: 'Job Photos',
+    pitch: 'Before and after photos of the job, sent to the customer as one link.',
+    // No Railway service yet. Subdomain planned; confirm before setting status to live.
+    url: 'https://job-photos.naplesaiagency.com',
+    tradeTags: ['home-services', 'hvac', 'plumbing', 'electrical', 'cleaning', 'lawn', 'pool'],
+    status: 'building',
+    kind: 'tool',
+  },
   // new-tool: entries are added above this line. Keep this comment.
 ];

@@ -30,7 +30,10 @@ export default function LandingPage() {
         <li>3. Send the link from your phone. The customer sees them side by side.</li>
       </ol>
       <p className="text-sm text-muted">
-        No account needed. Sign in later if you want to keep your past jobs.
+        No account needed. Sign in later if you want to keep your past jobs.{' '}
+        <Link href="/jobs" className="font-medium text-primary underline-offset-4 hover:underline">
+          Already saving yours? My jobs
+        </Link>
       </p>
     </section>
   );

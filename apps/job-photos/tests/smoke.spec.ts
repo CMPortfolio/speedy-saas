@@ -151,6 +151,9 @@ test('one-moment flow: details, before, after, note (API mocked)', async ({ page
   );
   await page.getByTestId('copy-link').click();
   await expect(page.getByTestId('copy-link')).toHaveText('Copied');
+  const save = page.getByTestId('save-my-jobs');
+  await expect(save).toHaveAttribute('href', '/sign-in?next=/jobs');
+  expect((await save.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => (window as unknown as { copied: string[] }).copied)).toEqual([
     'http://127.0.0.1:3001/j/abcdefghijklmnopqrstuv',
   ]);
@@ -169,4 +172,10 @@ test('share page: a malformed slug is a 404 and the preview image is a png', asy
   const image = await request.get('/j/not-a-real-slug/opengraph-image');
   expect(image.ok()).toBe(true);
   expect(image.headers()['content-type']).toContain('image/png');
+});
+
+test('my jobs needs sign-in and comes back to /jobs afterwards', async ({ page }) => {
+  await page.goto('/jobs');
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Fjobs$/);
+  await expect(page.getByLabel('Email')).toBeVisible();
 });

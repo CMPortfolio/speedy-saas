@@ -139,6 +139,34 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
       });
     });
 
+    it('claiming is a service-role operation and only the new owner sees the job after', async () => {
+      if (!db) return;
+      const job = await insertJob(null);
+      const claimed = await db.asService((c) =>
+        c.query(
+          `update job_photos.jobs set owner_id = $1, expires_at = null, claim_token_hash = null
+           where id = $2 and owner_id is null returning id`,
+          [alice.id, job],
+        ),
+      );
+      expect(claimed.rowCount).toBe(1);
+      const again = await db.asService((c) =>
+        c.query(
+          `update job_photos.jobs set owner_id = $1 where id = $2 and owner_id is null returning id`,
+          [bob.id, job],
+        ),
+      );
+      expect(again.rowCount).toBe(0);
+      const alices = await db.as(alice, (c) =>
+        c.query('select id, expires_at from job_photos.jobs where id = $1', [job]),
+      );
+      expect(alices.rows).toEqual([{ id: job, expires_at: null }]);
+      const bobs = await db.as(bob, (c) =>
+        c.query('select id from job_photos.jobs where id = $1', [job]),
+      );
+      expect(bobs.rowCount).toBe(0);
+    });
+
     it('a user cannot give away their job by setting owner_id to someone else', async () => {
       if (!db) return;
       await expect(

@@ -1,4 +1,5 @@
 import { CLAIM_TOKEN_HEADER, type PhotoKind } from '@/config/constants';
+import type { ClaimRequest } from '@/features/jobs/claims';
 import type {
   CreatedJob,
   CreateJobInput,
@@ -86,6 +87,15 @@ export function uploadPhotoRequest(
     method: 'POST',
     headers: authHeaders(job),
     body: form,
+  });
+}
+
+/** After sign-in: attach the jobs this phone made to the account. Cookie-authenticated. */
+export function claimJobsRequest(body: ClaimRequest): Promise<{ claimed: string[] }> {
+  return send<{ claimed: string[] }>('/api/jobs/claim', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
   });
 }
 

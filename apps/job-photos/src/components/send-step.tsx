@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { Button } from '@speedy/ui/button';
@@ -96,6 +97,19 @@ export function SendStep({ shareUrl, businessName, before, after, onAnother }: S
       >
         See what the customer sees
       </a>
+      <div className="space-y-2 rounded-brand border border-border bg-surface px-4 py-3">
+        <p className="text-sm text-muted">
+          Want this job and the next ones kept? Sign in once and they stay under your account
+          instead of disappearing after 30 days.
+        </p>
+        <Link
+          href="/sign-in?next=/jobs"
+          data-testid="save-my-jobs"
+          className="flex min-h-tap items-center justify-center rounded-brand border border-primary px-4 text-base font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Save my jobs
+        </Link>
+      </div>
       <Button type="button" variant="ghost" size="lg" fullWidth onClick={onAnother}>
         Start another job
       </Button>

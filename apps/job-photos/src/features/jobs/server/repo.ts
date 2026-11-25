@@ -30,7 +30,7 @@ export function anonymousExpiry(now = new Date()): string {
  * later with the token we return (only its hash is stored).
  */
 export async function createJob(
-  input: CreateJobInput,
+  input: CreateJobInput & { logo_path?: string | null },
   ownerId: string | null,
 ): Promise<Omit<CreatedJob, 'shareUrl'>> {
   const claimToken = randomToken();
@@ -44,6 +44,7 @@ export async function createJob(
       note: input.note ?? null,
       business_name: input.business_name ?? null,
       review_url: input.review_url ?? null,
+      logo_path: input.logo_path ?? null,
       claim_token_hash: await hashClaimToken(claimToken),
       expires_at: ownerId ? null : anonymousExpiry(),
     })
@@ -84,6 +85,21 @@ export async function updateJob(id: string, patch: UpdateJobInput): Promise<JobR
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * Attach an unowned job to a user and drop what made it anonymous. The `is('owner_id', null)`
+ * guard means two devices racing with the same token cannot both win.
+ */
+export async function claimJob(id: string, ownerId: string): Promise<boolean> {
+  const { data, error } = await jobsDb()
+    .from('jobs')
+    .update({ owner_id: ownerId, expires_at: null, claim_token_hash: null })
+    .eq('id', id)
+    .is('owner_id', null)
+    .select('id');
+  if (error) throw error;
+  return data.length > 0;
 }
 
 export async function setJobLogo(id: string, logoPath: string): Promise<void> {

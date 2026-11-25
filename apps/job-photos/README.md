@@ -26,6 +26,15 @@ tests/          Playwright one-moment test(s); tests/unit for Vitest
 tool.config.ts  slug, name, scope line, schema, dev port, URL
 ```
 
+## Saving jobs (sign-in)
+
+Nothing needs an account until the owner wants to keep jobs. "Save my jobs" starts magic-link
+sign-in (`/sign-in?next=/jobs`). On `/jobs` the phone sends the claim tokens it kept for the
+jobs it made (`@speedy/lib/device-claims`) to `POST /api/jobs/claim`; the server attaches the
+jobs whose token hashes match (constant-time compare), clears their expiry and token, moves the
+business name and logo from the phone to the profile, and records a `tool_usage` row. `/jobs`
+lists past jobs newest first and is protected in `src/proxy.ts`.
+
 ## Share page
 
 `/j/<slug>` is what the customer opens: business name and logo, before and after side by side

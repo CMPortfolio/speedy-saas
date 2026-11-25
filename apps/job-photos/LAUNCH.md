@@ -53,19 +53,19 @@ separate change once the steps below are done and you say it is shipping.
 
 ### Production environment variables (web service)
 
-| Variable                         | Value                                          | Notes                                               |
-| -------------------------------- | ---------------------------------------------- | --------------------------------------------------- |
-| `NODE_ENV`                       | `production`                                   |                                                     |
-| `APP_URL`                        | `https://job-photos.naplesaiagency.com`        | no trailing slash; used in share links and previews |
-| `NEXT_PUBLIC_SUPABASE_URL`       | shared project URL                             | build-time                                          |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | shared project anon key                        | build-time                                          |
-| `SUPABASE_SERVICE_ROLE_KEY`      | shared project service-role key                | server only; never `NEXT_PUBLIC_`                   |
-| `AUTH_COOKIE_DOMAIN`             | `.naplesaiagency.com`                          | one sign-in across tools                            |
-| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | `.naplesaiagency.com`                          | build-time; same value as above                     |
-| `STORAGE_DRIVER`                 | `supabase`                                     | `memory` is refused in production                   |
-| `CRON_SECRET`                    | 32+ random characters (`openssl rand -hex 32`) | guards `/api/cron/cleanup`                          |
-| `LOG_LEVEL`                      | `info`                                         | optional                                            |
-| `PORT`                           | set by Railway                                 | do not set it yourself                              |
+| Variable                         | Value                                          | Notes                                                                                                                           |
+| -------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                       | `production`                                   |                                                                                                                                 |
+| `APP_URL`                        | `https://job-photos.naplesaiagency.com`        | no trailing slash; used in share links and previews. Read at build time (metadataBase, og:image): set it before the first build |
+| `NEXT_PUBLIC_SUPABASE_URL`       | shared project URL                             | build-time                                                                                                                      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | shared project anon key                        | build-time                                                                                                                      |
+| `SUPABASE_SERVICE_ROLE_KEY`      | shared project service-role key                | server only; never `NEXT_PUBLIC_`                                                                                               |
+| `AUTH_COOKIE_DOMAIN`             | `.naplesaiagency.com`                          | one sign-in across tools                                                                                                        |
+| `NEXT_PUBLIC_AUTH_COOKIE_DOMAIN` | `.naplesaiagency.com`                          | build-time; same value as above                                                                                                 |
+| `STORAGE_DRIVER`                 | `supabase`                                     | `memory` is refused in production                                                                                               |
+| `CRON_SECRET`                    | 32+ random characters (`openssl rand -hex 32`) | guards `/api/cron/cleanup`                                                                                                      |
+| `LOG_LEVEL`                      | `info`                                         | optional                                                                                                                        |
+| `PORT`                           | set by Railway                                 | do not set it yourself                                                                                                          |
 
 The `job-photos-cleanup` service needs only `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 

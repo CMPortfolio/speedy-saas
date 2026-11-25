@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { forwardText, FORWARD_CAP_PER_HOUR } from '@/features/replies/forward';
 import {
   handleInboundText,
+  type InboundStore,
   type RecordedReply,
   type ReplyStore,
 } from '@/features/replies/handle-inbound';
@@ -60,6 +61,16 @@ function memoryStore(
   return { store, optedOut, forwards, recorded };
 }
 
+/** One owner who owns the business number; a text to any other number belongs to nobody. */
+function inboundOf(store: ReplyStore): InboundStore {
+  return {
+    async ownerForNumber(to) {
+      return to === BUSINESS ? 'owner-1' : null;
+    },
+    forOwner: () => store,
+  };
+}
+
 const inbound = (body: string, id = 'IN1') => ({
   kind: 'inbound' as const,
   from: CUSTOMER,
@@ -86,7 +97,7 @@ describe('handleInboundText', () => {
   it('forwards a reply to the owner with the customer’s name, once, using the hourly cap', async () => {
     const provider = fakeProvider();
     const { store, forwards, recorded } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('Can you do Thursday?'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('Can you do Thursday?'));
     expect(provider.sent).toHaveLength(1);
     expect(provider.sent[0]).toMatchObject({ to: OWNER_CELL, from: BUSINESS });
     expect(provider.sent[0]!.body).toContain('Maria Lopez');
@@ -104,7 +115,7 @@ describe('handleInboundText', () => {
   ])('does not forward for %s', async (_label, overrides) => {
     const provider = fakeProvider();
     const { store, forwards } = memoryStore(overrides);
-    await handleInboundText({ provider, store }, inbound('hello'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('hello'));
     expect(provider.sent).toHaveLength(0);
     expect(forwards).toHaveLength(0);
   });
@@ -113,17 +124,17 @@ describe('handleInboundText', () => {
     const provider = fakeProvider();
     provider.failNext();
     const { store, forwards } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('hi'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('hi'));
     expect(forwards).toEqual([{ id: 'reply-1', status: 'failed' }]);
   });
 
   it('STOP opts the number out, and START clears it, with nothing forwarded or recorded', async () => {
     const provider = fakeProvider();
     const { store, optedOut, recorded } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('STOP'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('STOP'));
     expect(optedOut.has(CUSTOMER)).toBe(true);
-    await handleInboundText({ provider, store }, inbound(' stop. '));
-    await handleInboundText({ provider, store }, inbound('START'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound(' stop. '));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('START'));
     expect(optedOut.has(CUSTOMER)).toBe(false);
     expect(recorded).toHaveLength(0);
     expect(provider.sent).toHaveLength(0);
@@ -134,7 +145,7 @@ describe('handleInboundText', () => {
     async (word) => {
       const provider = fakeProvider();
       const { store, optedOut, recorded } = memoryStore();
-      await handleInboundText({ provider, store }, inbound(word));
+      await handleInboundText({ provider, store: inboundOf(store) }, inbound(word));
       expect(optedOut.size).toBe(0);
       expect(recorded).toHaveLength(1);
       expect(provider.sent).toHaveLength(1);
@@ -147,8 +158,8 @@ describe('handleInboundText', () => {
     async (word) => {
       const provider = fakeProvider();
       const { store, optedOut, recorded } = memoryStore();
-      await handleInboundText({ provider, store }, inbound('STOP'));
-      await handleInboundText({ provider, store }, inbound(word));
+      await handleInboundText({ provider, store: inboundOf(store) }, inbound('STOP'));
+      await handleInboundText({ provider, store: inboundOf(store) }, inbound(word));
       expect(optedOut.has(CUSTOMER)).toBe(false);
       expect(recorded).toHaveLength(0);
       expect(provider.sent).toHaveLength(0);
@@ -158,17 +169,17 @@ describe('handleInboundText', () => {
   it('an "Ok" or "Thanks" is a reply too', async () => {
     const provider = fakeProvider();
     const { store, recorded } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('Ok'));
-    await handleInboundText({ provider, store }, inbound('Thanks!', 'IN2'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('Ok'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('Thanks!', 'IN2'));
     expect(recorded.map((r) => r.body)).toEqual(['Ok', 'Thanks!']);
   });
 
   it('answers HELP for a known customer with the business name, not forwarded, once a day', async () => {
     const provider = fakeProvider();
     const { store, recorded } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('HELP'));
-    await handleInboundText({ provider, store }, inbound('help', 'IN2'));
-    await handleInboundText({ provider, store }, inbound('INFO', 'IN3'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('HELP'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('help', 'IN2'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('INFO', 'IN3'));
     expect(provider.sent).toHaveLength(1);
     expect(provider.sent[0]).toMatchObject({ to: CUSTOMER, from: BUSINESS });
     expect(provider.sent[0]!.body).toBe(
@@ -180,14 +191,49 @@ describe('handleInboundText', () => {
   it('does not answer HELP from a number that is not a customer, and does not use up the limit', async () => {
     const provider = fakeProvider();
     const { store } = memoryStore({}, null);
-    await handleInboundText({ provider, store }, inbound('HELP'));
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('HELP'));
     expect(provider.sent).toHaveLength(0);
+  });
+
+  it('ignores a text to a number that is nobody’s, storing nothing and sending nothing', async () => {
+    const provider = fakeProvider();
+    const { store, recorded, optedOut } = memoryStore();
+    const stray = { ...inbound('STOP'), to: '+12395550999' as E164 };
+    await handleInboundText({ provider, store: inboundOf(store) }, stray);
+    await handleInboundText({ provider, store: inboundOf(store) }, { ...stray, body: 'hello' });
+    await handleInboundText({ provider, store: inboundOf(store) }, { ...stray, body: 'HELP' });
+    expect(recorded).toHaveLength(0);
+    expect(optedOut.size).toBe(0);
+    expect(provider.sent).toHaveLength(0);
+  });
+});
+
+describe('handleInboundText: failures and strangers', () => {
+  it('marks the forward failed when the provider throws, so it never sits at "Forwarding"', async () => {
+    const provider = fakeProvider();
+    const { store, forwards } = memoryStore();
+    provider.sendText = async () => {
+      throw new Error('network down');
+    };
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('hi'));
+    expect(forwards).toEqual([{ id: 'reply-1', status: 'failed' }]);
+  });
+
+  it('does not forward to a cell that is not a US number, and marks it failed', async () => {
+    const provider = fakeProvider();
+    const { store, forwards } = memoryStore({ ownerCell: '+14165550123' });
+    await handleInboundText({ provider, store: inboundOf(store) }, inbound('hi'));
+    expect(provider.sent).toHaveLength(0);
+    expect(forwards).toEqual([{ id: 'reply-1', status: 'failed' }]);
   });
 
   it('treats a sentence containing "stop" as an ordinary reply', async () => {
     const provider = fakeProvider();
     const { store, optedOut } = memoryStore();
-    await handleInboundText({ provider, store }, inbound('Please stop by tomorrow'));
+    await handleInboundText(
+      { provider, store: inboundOf(store) },
+      inbound('Please stop by tomorrow'),
+    );
     expect(optedOut.size).toBe(0);
     expect(provider.sent).toHaveLength(1);
   });

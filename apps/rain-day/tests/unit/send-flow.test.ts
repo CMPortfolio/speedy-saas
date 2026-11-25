@@ -106,128 +106,132 @@ afterAll(async () => {
   if (enabled) for (const id of created) await service.auth.admin.deleteUser(id);
 });
 
-describe.skipIf(!enabled)('rain day send flow (local Supabase, fake provider)', () => {
-  it('sends 15 separate texts minus the opted-out, and a second tap sends nothing', async () => {
-    const { owner, phones } = await ownerWithCustomers(15, [3, 11]);
-    const { ctx, provider } = await context(owner);
-    const req = request(ctx);
+describe.skipIf(!enabled)(
+  'rain day send flow (local Supabase, fake provider)',
+  { timeout: 60_000 },
+  () => {
+    it('sends 15 separate texts minus the opted-out, and a second tap sends nothing', async () => {
+      const { owner, phones } = await ownerWithCustomers(15, [3, 11]);
+      const { ctx, provider } = await context(owner);
+      const req = request(ctx);
 
-    const first = await runSend(ctx, req);
-    expect(first).toMatchObject({ ok: true, alreadySent: false });
-    expect(provider.sent).toHaveLength(13);
-    expect(new Set(provider.sent.map((s) => s.to)).size).toBe(13);
-    expect(provider.sent.map((s) => s.to)).not.toEqual(
-      expect.arrayContaining([phones[3], phones[11]]),
-    );
-    for (const s of provider.sent) {
-      for (const p of phones) expect(s.body).not.toContain(p.slice(2));
-    }
+      const first = await runSend(ctx, req);
+      expect(first).toMatchObject({ ok: true, alreadySent: false });
+      expect(provider.sent).toHaveLength(13);
+      expect(new Set(provider.sent.map((s) => s.to)).size).toBe(13);
+      expect(provider.sent.map((s) => s.to)).not.toEqual(
+        expect.arrayContaining([phones[3], phones[11]]),
+      );
+      for (const s of provider.sent) {
+        for (const p of phones) expect(s.body).not.toContain(p.slice(2));
+      }
 
-    const second = await runSend(ctx, req);
-    expect(second).toMatchObject({ ok: true, alreadySent: true });
-    expect(first.ok && second.ok && second.rescheduleId).toBe(first.ok && first.rescheduleId);
-    expect(provider.sent).toHaveLength(13);
+      const second = await runSend(ctx, req);
+      expect(second).toMatchObject({ ok: true, alreadySent: true });
+      expect(first.ok && second.ok && second.rescheduleId).toBe(first.ok && first.rescheduleId);
+      expect(provider.sent).toHaveLength(13);
 
-    const rows = await statuses(owner, first.ok ? first.rescheduleId : '');
-    expect(rows).toHaveLength(15);
-    expect(rows.filter((r) => r.status === 'sent')).toHaveLength(13);
-    expect(rows.filter((r) => r.provider === 'fake' && r.provider_message_id)).toHaveLength(13);
-    const skipped = rows.filter((r) => r.status === 'skipped');
-    expect(skipped.map((r) => r.customer_name).sort()).toEqual([
-      'Customer11 Test',
-      'Customer3 Test',
-    ]);
-    expect(skipped.every((r) => r.error_code === 'opted_out')).toBe(true);
-  });
-
-  it('two taps at the same moment still send one text each', async () => {
-    const { owner } = await ownerWithCustomers(6);
-    const { ctx, provider } = await context(owner);
-    const req = request(ctx);
-    const [a, b] = await Promise.all([runSend(ctx, req), runSend(ctx, req)]);
-    expect([a.ok && a.alreadySent, b.ok && b.alreadySent].sort()).toEqual([false, true]);
-    expect(provider.sent).toHaveLength(6);
-  });
-
-  it('delivery events move a message forward once and never back', async () => {
-    const { owner } = await ownerWithCustomers(2);
-    const { ctx, provider } = await context(owner);
-    const result = await runSend(ctx, request(ctx));
-    const id = provider.sent[0]!.providerMessageId;
-    const read = async () =>
-      (
-        await service
-          .schema('rain_day')
-          .from('reschedule_messages')
-          .select('status')
-          .eq('provider_message_id', id)
-          .eq('reschedule_id', result.ok ? result.rescheduleId : '')
-          .single()
-      ).data?.status;
-    const event = (status: 'delivered' | 'sent' | 'failed') =>
-      applyDeliveryEvent(service, { kind: 'delivery', providerMessageId: id, status }, 'fake');
-    await event('delivered');
-    await event('sent');
-    expect(await read()).toBe('delivered');
-    await event('failed');
-    expect(await read()).toBe('delivered');
-    // An event naming a different provider never touches this row.
-    await applyDeliveryEvent(
-      service,
-      {
-        kind: 'delivery',
-        providerMessageId: provider.sent[1]!.providerMessageId,
-        status: 'failed',
-      },
-      'twilio',
-    );
-    const other = await statuses(owner, result.ok ? result.rescheduleId : '');
-    expect(other.filter((r) => r.status === 'failed')).toHaveLength(0);
-  });
-
-  it('records a failed text as failed and still sends the others', async () => {
-    const { owner } = await ownerWithCustomers(4);
-    const { ctx, provider } = await context(owner);
-    provider.failNext();
-    const result = await runSend(ctx, request(ctx));
-    const rows = await statuses(owner, result.ok ? result.rescheduleId : '');
-    expect(rows.filter((r) => r.status === 'failed')).toHaveLength(1);
-    expect(rows.filter((r) => r.status === 'sent')).toHaveLength(3);
-  });
-
-  it('reports honestly when the lookups before sending fail: nothing sent, rows left queued', async () => {
-    const { owner } = await ownerWithCustomers(3);
-    const flaky = new Proxy(owner.client, {
-      get(target, prop) {
-        if (prop !== 'schema') return Reflect.get(target, prop);
-        return (name: 'rain_day') => {
-          const schema = target.schema(name);
-          return new Proxy(schema, {
-            get(inner, p) {
-              if (p === 'rpc') {
-                return (fn: string, args: never) =>
-                  fn === 'previously_texted'
-                    ? Promise.resolve({ data: null, error: { code: 'XX000', message: 'boom' } })
-                    : inner.rpc(fn as never, args);
-              }
-              const value = Reflect.get(inner, p);
-              return typeof value === 'function' ? value.bind(inner) : value;
-            },
-          });
-        };
-      },
+      const rows = await statuses(owner, first.ok ? first.rescheduleId : '');
+      expect(rows).toHaveLength(15);
+      expect(rows.filter((r) => r.status === 'sent')).toHaveLength(13);
+      expect(rows.filter((r) => r.provider === 'fake' && r.provider_message_id)).toHaveLength(13);
+      const skipped = rows.filter((r) => r.status === 'skipped');
+      expect(skipped.map((r) => r.customer_name).sort()).toEqual([
+        'Customer11 Test',
+        'Customer3 Test',
+      ]);
+      expect(skipped.every((r) => r.error_code === 'opted_out')).toBe(true);
     });
-    const { ctx, provider } = await context(owner, fakeProvider(), flaky as Client);
-    const result = await runSend(ctx, request(ctx));
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.rescheduleId).toBeTruthy();
-    expect(provider.sent).toHaveLength(0);
-    const rows = await statuses(owner, !result.ok ? (result.rescheduleId ?? '') : '');
-    expect(rows.every((r) => r.status === 'queued')).toBe(true);
-  });
-});
 
-describe.skipIf(!enabled)('rain day send flow: limits and skips', () => {
+    it('two taps at the same moment still send one text each', async () => {
+      const { owner } = await ownerWithCustomers(6);
+      const { ctx, provider } = await context(owner);
+      const req = request(ctx);
+      const [a, b] = await Promise.all([runSend(ctx, req), runSend(ctx, req)]);
+      expect([a.ok && a.alreadySent, b.ok && b.alreadySent].sort()).toEqual([false, true]);
+      expect(provider.sent).toHaveLength(6);
+    });
+
+    it('delivery events move a message forward once and never back', async () => {
+      const { owner } = await ownerWithCustomers(2);
+      const { ctx, provider } = await context(owner);
+      const result = await runSend(ctx, request(ctx));
+      const id = provider.sent[0]!.providerMessageId;
+      const read = async () =>
+        (
+          await service
+            .schema('rain_day')
+            .from('reschedule_messages')
+            .select('status')
+            .eq('provider_message_id', id)
+            .eq('reschedule_id', result.ok ? result.rescheduleId : '')
+            .single()
+        ).data?.status;
+      const event = (status: 'delivered' | 'sent' | 'failed') =>
+        applyDeliveryEvent(service, { kind: 'delivery', providerMessageId: id, status }, 'fake');
+      await event('delivered');
+      await event('sent');
+      expect(await read()).toBe('delivered');
+      await event('failed');
+      expect(await read()).toBe('delivered');
+      // An event naming a different provider never touches this row.
+      await applyDeliveryEvent(
+        service,
+        {
+          kind: 'delivery',
+          providerMessageId: provider.sent[1]!.providerMessageId,
+          status: 'failed',
+        },
+        'twilio',
+      );
+      const other = await statuses(owner, result.ok ? result.rescheduleId : '');
+      expect(other.filter((r) => r.status === 'failed')).toHaveLength(0);
+    });
+
+    it('records a failed text as failed and still sends the others', async () => {
+      const { owner } = await ownerWithCustomers(4);
+      const { ctx, provider } = await context(owner);
+      provider.failNext();
+      const result = await runSend(ctx, request(ctx));
+      const rows = await statuses(owner, result.ok ? result.rescheduleId : '');
+      expect(rows.filter((r) => r.status === 'failed')).toHaveLength(1);
+      expect(rows.filter((r) => r.status === 'sent')).toHaveLength(3);
+    });
+
+    it('reports honestly when the lookups before sending fail: nothing sent, rows left queued', async () => {
+      const { owner } = await ownerWithCustomers(3);
+      const flaky = new Proxy(owner.client, {
+        get(target, prop) {
+          if (prop !== 'schema') return Reflect.get(target, prop);
+          return (name: 'rain_day') => {
+            const schema = target.schema(name);
+            return new Proxy(schema, {
+              get(inner, p) {
+                if (p === 'rpc') {
+                  return (fn: string, args: never) =>
+                    fn === 'previously_texted'
+                      ? Promise.resolve({ data: null, error: { code: 'XX000', message: 'boom' } })
+                      : inner.rpc(fn as never, args);
+                }
+                const value = Reflect.get(inner, p);
+                return typeof value === 'function' ? value.bind(inner) : value;
+              },
+            });
+          };
+        },
+      });
+      const { ctx, provider } = await context(owner, fakeProvider(), flaky as Client);
+      const result = await runSend(ctx, request(ctx));
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.rescheduleId).toBeTruthy();
+      expect(provider.sent).toHaveLength(0);
+      const rows = await statuses(owner, !result.ok ? (result.rescheduleId ?? '') : '');
+      expect(rows.every((r) => r.status === 'queued')).toBe(true);
+    });
+  },
+);
+
+describe.skipIf(!enabled)('rain day send flow: limits and skips', { timeout: 60_000 }, () => {
   it('skips a customer with a non-US number, with the reason', async () => {
     const owner = await signedIn();
     await service

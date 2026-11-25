@@ -22,9 +22,12 @@ export function isFakeSms(provider: SmsProvider): provider is FakeProvider {
   return provider.name === 'fake';
 }
 
-/** The number texts go out from. The fake provider gets a made-up one so dev works with no setup. */
-export function getSmsFrom(): E164 {
-  if (env.SMS_FROM_NUMBER) return env.SMS_FROM_NUMBER as E164;
-  if (env.SMS_PROVIDER === 'fake') return '+12395550100';
-  throw new Error('SMS_FROM_NUMBER is not set');
+/**
+ * A made-up sender for the fake provider in development, so tooling works before an owner has
+ * a number. Never used with a real provider: every owner texts from their own number
+ * (`rain_day.owner_settings.sender_number`, set by an admin).
+ */
+export function devDefaultSender(): E164 | null {
+  if (env.SMS_PROVIDER !== 'fake') return null;
+  return (env.SMS_FROM_NUMBER as E164 | undefined) ?? '+12395550100';
 }

@@ -82,3 +82,10 @@ export async function listOptedOutPhones(db: Db): Promise<Set<string>> {
   if (error) throw error;
   return new Set(data.map((r) => r.phone));
 }
+
+/** Customers who already got a text from this owner. RLS limits rows to the owner. */
+export async function listContactedCustomerIds(db: Db): Promise<Set<string>> {
+  const { data, error } = await db.schema('rain_day').rpc('contacted_customers');
+  if (error) throw error;
+  return new Set(data);
+}

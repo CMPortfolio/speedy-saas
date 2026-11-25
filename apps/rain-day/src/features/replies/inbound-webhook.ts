@@ -3,7 +3,10 @@ import type { SmsProvider } from '@speedy/sms/provider';
 import { handleNextWebhook } from '@speedy/sms/webhook';
 
 import { handleInboundText } from './handle-inbound';
-import { createReplyStore } from './reply-store';
+import { createInboundStore } from './reply-store';
+
+/** Tells Twilio there is nothing to say back (the reply to the customer, if any, goes by API). */
+const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response/>';
 
 /**
  * Texts customers send to the business number. The signature is checked first, so a forged
@@ -19,11 +22,13 @@ export function handleInboundWebhook(
     deps.provider,
     request,
     {
-      onInbound: (message) =>
-        handleInboundText(
-          { provider: deps.provider, store: createReplyStore(deps.getDb()) },
+      onInbound: async (message) => {
+        await handleInboundText(
+          { provider: deps.provider, store: createInboundStore(deps.getDb()) },
           message,
-        ),
+        );
+        return EMPTY_TWIML;
+      },
     },
     { publicUrl: deps.publicUrl },
   );

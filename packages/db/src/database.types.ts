@@ -340,6 +340,7 @@ export type Database = {
           owner_id: string;
           owner_cell: string | null;
           owner_cell_verified_at: string | null;
+          sender_number: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -347,6 +348,7 @@ export type Database = {
           owner_id: string;
           owner_cell?: string | null;
           owner_cell_verified_at?: string | null;
+          sender_number?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -354,6 +356,7 @@ export type Database = {
           owner_id?: string;
           owner_cell?: string | null;
           owner_cell_verified_at?: string | null;
+          sender_number?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -452,6 +455,7 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      contacted_customers: { Args: Record<PropertyKey, never>; Returns: string[] };
       claim_help_reply: {
         Args: { p_phone: string };
         Returns: boolean;
@@ -462,6 +466,7 @@ export type Database = {
       };
       record_reply: {
         Args: {
+          p_owner_id: string;
           p_from: string;
           p_provider_message_id: string;
           p_body: string;
@@ -471,7 +476,6 @@ export type Database = {
           matched: boolean;
           duplicate: boolean;
           reply_id: string | null;
-          owner_id: string | null;
           customer_name: string | null;
           customer_phone: string | null;
           owner_cell: string | null;
@@ -479,7 +483,12 @@ export type Database = {
         }[];
       };
       reserve_verification_send: {
-        Args: { p_owner_id: string; p_limit: number; p_window_seconds: number };
+        Args: {
+          p_owner_id: string;
+          p_limit: number;
+          p_window_seconds: number;
+          p_daily_limit: number;
+        };
         Returns: boolean;
       };
       previously_texted: {

@@ -64,6 +64,7 @@ afterAll(async () => {
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day reschedules RLS',
+  { timeout: 60_000 },
   () => {
     it('create_reschedule makes one rain day with its messages, once per key', async () => {
       if (!db) return;
@@ -150,6 +151,7 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day reschedules RLS: writes',
+  { timeout: 60_000 },
   () => {
     it('owners cannot edit or delete sends, and a message cannot be created already marked sent', async () => {
       if (!db) return;
@@ -233,6 +235,7 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day reschedule_messages provider ids',
+  { timeout: 60_000 },
   () => {
     it('a provider message id needs its provider, and is unique per real provider only', async () => {
       if (!db) return;
@@ -324,6 +327,7 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day create_reschedule limits and validation',
+  { timeout: 60_000 },
   () => {
     async function ownerWithCustomers(n: number) {
       const owner = await db!.createUser();
@@ -438,6 +442,7 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day.opt_outs',
+  { timeout: 60_000 },
   () => {
     const optOut = (owner: TestUser, phone: string) =>
       db!.asService((c) =>

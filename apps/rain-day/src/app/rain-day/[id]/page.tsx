@@ -10,7 +10,7 @@ import { AutoRefresh } from '@/features/rain-day/auto-refresh';
 import { getReschedule, listRescheduleMessages } from '@/features/rain-day/queries';
 import { weekdayName } from '@/lib/weekday';
 import { weekdayOf } from '@/lib/dates';
-import { nowMs } from '@/lib/clock';
+import { isStale } from '@/lib/clock';
 
 const sentAt = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
@@ -31,9 +31,6 @@ const LABELS: Record<string, string> = {
   skipped_non_us: 'Skipped (not a US number)',
   not_sent: 'Not sent',
 };
-
-/** After this long a text still "sending" never will, so stop waiting and say so. */
-const STALE_MS = 2 * 60_000;
 
 function statusOf(m: { status: string; error_code: string | null }, stale: boolean): string {
   if (m.status === 'skipped' && m.error_code === 'non_us') return 'skipped_non_us';
@@ -63,7 +60,7 @@ export default async function RescheduleResultPage({
   const reschedule = await getReschedule(supabase, id);
   if (!reschedule) notFound();
   const messages = await listRescheduleMessages(supabase, id);
-  const stale = nowMs() - new Date(reschedule.created_at).getTime() > STALE_MS;
+  const stale = isStale(reschedule.created_at);
   const rows = messages.map((m) => ({ m, status: statusOf(m, stale) }));
   const inFlight = !stale && messages.some((m) => m.status === 'queued' || m.status === 'sent');
   const counts: Record<string, number> = {};

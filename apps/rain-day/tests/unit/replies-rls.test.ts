@@ -2,27 +2,22 @@ import { connectTestDb, isDenied, type TestDb, type TestUser } from '@speedy/db/
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * R4 database rules: replies, owner settings, phone verification state and the functions that
- * write them. Owner A never sees owner B's data; owners cannot forge any of it.
+ * R4 database rules: replies, owner settings, per-owner sender numbers, phone verification state
+ * and the functions that write them. Owner A never sees, receives or changes owner B's data;
+ * owners cannot forge any of it.
  */
 let db: TestDb | null = null;
 let alice: TestUser;
 let bob: TestUser;
+
 /** A fresh US-shaped number per call, so rows left by earlier runs never match. */
 function freshPhone(): string {
   return `+12396${String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')}`;
 }
-const INBOUND_ID = `SMin${crypto.randomUUID()}`;
-const NOCELL_ID = `SMnocell${crypto.randomUUID()}`;
-const CAP_RUN = crypto.randomUUID();
-const SHARED_PHONE = freshPhone();
-const PH311 = freshPhone();
-const PH321 = freshPhone();
-const PH331 = freshPhone();
-const PH332 = freshPhone();
-const PH399 = freshPhone();
 
-const RECORD = 'select * from rain_day.record_reply($1, $2, $3, $4)';
+const RECORD = 'select * from rain_day.record_reply($1, $2, $3, $4, $5)';
+const RESERVE = 'select rain_day.reserve_verification_send($1, 3, 3600, 6) as ok';
+const TIMEOUT = { timeout: 60_000 };
 
 async function seedSentMessage(owner: TestUser, phone: string, name: string, sentAt: string) {
   const pool = db!.pool;
@@ -43,7 +38,7 @@ async function seedSentMessage(owner: TestUser, phone: string, name: string, sen
 
 async function verifiedCell(owner: TestUser, cell: string) {
   await db!.pool.query(
-    'insert into rain_day.owner_settings (owner_id, owner_cell, owner_cell_verified_at) values ($1, $2, now())',
+    'insert into rain_day.owner_settings (owner_id, owner_cell, owner_cell_verified_at) values ($1, $2, now()) on conflict (owner_id) do update set owner_cell = $2, owner_cell_verified_at = now()',
     [owner.id, cell],
   );
 }
@@ -61,13 +56,14 @@ afterAll(async () => {
   await db?.close();
 });
 
-describe.skipIf(!enabled)('rain_day R4 RLS', () => {
+describe.skipIf(!enabled)('rain_day R4 RLS', TIMEOUT, () => {
   it('owners read only their own replies and settings, and cannot write either', async () => {
     if (!db) return;
-    const a = await seedSentMessage(alice, PH311, 'Ann', '2026-12-01T10:00:00Z');
+    const phone = freshPhone();
+    const a = await seedSentMessage(alice, phone, 'Ann', '2026-12-01T10:00:00Z');
     await verifiedCell(alice, '+12395550999');
     await db.asService((c) =>
-      c.query(RECORD, [PH311, `SMrls${crypto.randomUUID()}`, 'Thursday?', 30]),
+      c.query(RECORD, [alice.id, phone, `SMrls${crypto.randomUUID()}`, 'Thursday?', 30]),
     );
     const mine = await db.as(alice, (c) => c.query('select customer_name from rain_day.replies'));
     expect(mine.rows).toEqual([{ customer_name: 'Ann' }]);
@@ -107,17 +103,18 @@ describe.skipIf(!enabled)('rain_day R4 RLS', () => {
 
   it('an owner cell is never stored without its verified time', async () => {
     if (!db) return;
+    const owner = await db.createUser();
     await expect(
       db.pool.query(
         "insert into rain_day.owner_settings (owner_id, owner_cell) values ($1, '+12395550666')",
-        [bob.id],
+        [owner.id],
       ),
     ).rejects.toMatchObject({ code: '23514' });
   });
 
   it('verification state and the server functions are closed to owners and anon', async () => {
     if (!db) return;
-    for (const table of ['phone_verifications', 'verification_sends']) {
+    for (const table of ['phone_verifications', 'verification_sends', 'help_replies']) {
       await expect(
         db.as(alice, (c) => c.query(`select * from rain_day.${table}`)),
       ).rejects.toSatisfy(isDenied);
@@ -125,37 +122,41 @@ describe.skipIf(!enabled)('rain_day R4 RLS', () => {
         db.as(null, (c) => c.query(`select * from rain_day.${table}`)),
       ).rejects.toSatisfy(isDenied);
     }
-    await expect(
-      db.as(alice, (c) =>
-        c.query('select rain_day.reserve_verification_send($1, 3, 3600)', [alice.id]),
-      ),
-    ).rejects.toSatisfy(isDenied);
+    const args = [alice.id, '+12395550311', 'x', 'x', 30];
+    await expect(db.as(alice, (c) => c.query(RESERVE, [alice.id]))).rejects.toSatisfy(isDenied);
     await expect(
       db.as(alice, (c) => c.query('select rain_day.consume_verification_attempt($1)', [alice.id])),
     ).rejects.toSatisfy(isDenied);
-    await expect(db.as(alice, (c) => c.query(RECORD, [PH311, 'x', 'x', 30]))).rejects.toSatisfy(
-      isDenied,
-    );
-    await expect(db.as(null, (c) => c.query(RECORD, [PH311, 'x', 'x', 30]))).rejects.toSatisfy(
-      isDenied,
-    );
+    await expect(db.as(alice, (c) => c.query(RECORD, args))).rejects.toSatisfy(isDenied);
+    await expect(db.as(null, (c) => c.query(RECORD, args))).rejects.toSatisfy(isDenied);
+    await expect(
+      db.as(alice, (c) => c.query('select rain_day.claim_help_reply($1)', ['+12395550311'])),
+    ).rejects.toSatisfy(isDenied);
   });
+});
 
-  it('reserve_verification_send allows 3 an hour per owner and the counts are separate', async () => {
+describe.skipIf(!enabled)('rain_day verification limits', TIMEOUT, () => {
+  it('reserve_verification_send allows 3 an hour and 6 a day per owner, counted separately', async () => {
     if (!db) return;
     const reserve = (u: TestUser) =>
-      db!.asService(
-        async (c) =>
-          (await c.query('select rain_day.reserve_verification_send($1, 3, 3600) as ok', [u.id]))
-            .rows[0].ok,
-      );
+      db!.asService(async (c) => (await c.query(RESERVE, [u.id])).rows[0].ok as boolean);
+    const first = await db.createUser();
     expect([
-      await reserve(alice),
-      await reserve(alice),
-      await reserve(alice),
-      await reserve(alice),
+      await reserve(first),
+      await reserve(first),
+      await reserve(first),
+      await reserve(first),
     ]).toEqual([true, true, true, false]);
-    expect(await reserve(bob)).toBe(true);
+    expect(await reserve(await db.createUser())).toBe(true);
+
+    // Three codes already went out yesterday-ish (2 hours ago): the hour is clear, the day is not full.
+    const second = await db.createUser();
+    await db.pool.query(
+      "insert into rain_day.verification_sends (owner_id, created_at) select $1, now() - interval '2 hours' from generate_series(1, 5)",
+      [second.id],
+    );
+    expect(await reserve(second)).toBe(true); // 6th in 24 hours
+    expect(await reserve(second)).toBe(false); // 7th: over the daily cap, though the hour is clear
   });
 
   it('consume_verification_attempt counts atomically and is null without a challenge', async () => {
@@ -175,50 +176,114 @@ describe.skipIf(!enabled)('rain_day R4 RLS', () => {
     const counts = await Promise.all([consume(), consume(), consume()]);
     expect(counts.sort()).toEqual([1, 2, 3]);
   });
+
+  it('claim_help_reply is true once per number per 24 hours', async () => {
+    if (!db) return;
+    const phone = freshPhone();
+    const claim = () =>
+      db!.asService(
+        async (c) =>
+          (await c.query('select rain_day.claim_help_reply($1) as ok', [phone])).rows[0].ok,
+      );
+    expect([await claim(), await claim()]).toEqual([true, false]);
+    await db.pool.query(
+      "update rain_day.help_replies set last_sent_at = now() - interval '25 hours' where phone = $1",
+      [phone],
+    );
+    expect(await claim()).toBe(true);
+  });
 });
 
-describe.skipIf(!enabled)('rain_day.record_reply', () => {
-  it('files a reply under the latest message to that phone, across owners, and marks it replied', async () => {
+describe.skipIf(!enabled)('rain_day.owner_settings sender_number', TIMEOUT, () => {
+  const setSender = (owner: TestUser, number: string) =>
+    db!.asService((c) =>
+      c.query(
+        'insert into rain_day.owner_settings (owner_id, sender_number) values ($1, $2) on conflict (owner_id) do update set sender_number = $2',
+        [owner.id, number],
+      ),
+    );
+
+  it('is set by the service role, read by its owner, and never writable by an owner', async () => {
     if (!db) return;
-    const phone = SHARED_PHONE;
-    const old = await seedSentMessage(alice, phone, 'Maria', '2026-12-01T10:00:00Z');
-    const recent = await seedSentMessage(bob, phone, 'Maria L', '2026-12-02T10:00:00Z');
-    await verifiedCell(bob, '+12395550998');
+    const owner = await db.createUser();
+    const number = freshPhone();
+    await setSender(owner, number);
+    const own = await db.as(owner, (c) =>
+      c.query('select sender_number from rain_day.owner_settings'),
+    );
+    expect(own.rows).toEqual([{ sender_number: number }]);
+    await expect(
+      db.as(owner, (c) =>
+        c.query('update rain_day.owner_settings set sender_number = $1 where owner_id = $2', [
+          freshPhone(),
+          owner.id,
+        ]),
+      ),
+    ).rejects.toSatisfy(isDenied);
+  });
+
+  it('two owners can never share a number, and it must be a US E.164 number', async () => {
+    if (!db) return;
+    const [a, b] = [await db.createUser(), await db.createUser()];
+    const number = freshPhone();
+    await setSender(a, number);
+    await expect(setSender(b, number)).rejects.toMatchObject({ code: '23505' });
+    await expect(setSender(b, '239-555-0100')).rejects.toMatchObject({ code: '23514' });
+  });
+});
+
+describe.skipIf(!enabled)('rain_day.record_reply', TIMEOUT, () => {
+  it('matches only the owner who was texted: another owner with the same customer gets nothing', async () => {
+    if (!db) return;
+    const phone = freshPhone();
+    const [owner, rival] = [await db.createUser(), await db.createUser()];
+    const mine = await seedSentMessage(owner, phone, 'Maria', '2026-12-01T10:00:00Z');
+    // The rival imported the same customer and texted them more recently.
+    const theirs = await seedSentMessage(rival, phone, 'Maria L', '2026-12-02T10:00:00Z');
+    await verifiedCell(owner, '+12395550998');
+    await verifiedCell(rival, '+12395550995');
+
+    const id = `SMin${crypto.randomUUID()}`;
     const res = await db.asService((c) =>
-      c.query(RECORD, [phone, INBOUND_ID, 'Can you do Thursday?', 30]),
+      c.query(RECORD, [owner.id, phone, id, 'Can you do Thursday?', 30]),
     );
     expect(res.rows[0]).toMatchObject({
       matched: true,
       duplicate: false,
-      owner_id: bob.id,
-      customer_name: 'Maria L',
+      customer_name: 'Maria',
       owner_cell: '+12395550998',
       forward: true,
     });
-    const status = async (id: string) =>
-      (await db!.pool.query('select status from rain_day.reschedule_messages where id = $1', [id]))
-        .rows[0].status;
-    expect(await status(recent.messageId)).toBe('replied');
-    expect(await status(old.messageId)).toBe('sent');
-  });
+    const status = async (messageId: string) =>
+      (
+        await db!.pool.query('select status from rain_day.reschedule_messages where id = $1', [
+          messageId,
+        ])
+      ).rows[0].status;
+    expect(await status(mine.messageId)).toBe('replied');
+    expect(await status(theirs.messageId)).toBe('sent');
+    const rivalReplies = await db.pool.query('select 1 from rain_day.replies where owner_id = $1', [
+      rival.id,
+    ]);
+    expect(rivalReplies.rowCount).toBe(0);
 
-  it('a repeated provider id is a no-op: no second reply, no second forward', async () => {
-    if (!db) return;
+    // And a repeated provider id is a no-op: no second reply, no second forward.
     const again = await db.asService((c) =>
-      c.query(RECORD, [SHARED_PHONE, INBOUND_ID, 'Can you do Thursday?', 30]),
+      c.query(RECORD, [owner.id, phone, id, 'Can you do Thursday?', 30]),
     );
     expect(again.rows[0]).toMatchObject({ matched: true, duplicate: true, forward: false });
     const n = await db.pool.query(
       'select count(*)::int as n from rain_day.replies where provider_message_id = $1',
-      [INBOUND_ID],
+      [id],
     );
     expect(n.rows[0].n).toBe(1);
   });
 
-  it('a number nobody texted matches nothing', async () => {
+  it('a number this owner never texted matches nothing', async () => {
     if (!db) return;
+    const owner = await db.createUser();
     const res = await db.asService((c) =>
-      c.query(RECORD, [PH399, `SMnone${crypto.randomUUID()}`, 'hello', 30]),
+      c.query(RECORD, [owner.id, freshPhone(), `SMnone${crypto.randomUUID()}`, 'hello', 30]),
     );
     expect(res.rows[0]).toMatchObject({ matched: false, forward: false });
   });
@@ -226,28 +291,31 @@ describe.skipIf(!enabled)('rain_day.record_reply', () => {
   it('without a verified cell the reply is kept but not forwarded', async () => {
     if (!db) return;
     const owner = await db.createUser();
-    await seedSentMessage(owner, PH321, 'Cal', '2026-12-03T10:00:00Z');
-    const res = await db.asService((c) => c.query(RECORD, [PH321, NOCELL_ID, 'hi', 30]));
+    const phone = freshPhone();
+    await seedSentMessage(owner, phone, 'Cal', '2026-12-03T10:00:00Z');
+    const id = `SMnocell${crypto.randomUUID()}`;
+    const res = await db.asService((c) => c.query(RECORD, [owner.id, phone, id, 'hi', 30]));
     expect(res.rows[0]).toMatchObject({ matched: true, forward: false, owner_cell: null });
     const row = await db.pool.query(
       'select forward_status from rain_day.replies where provider_message_id = $1',
-      [NOCELL_ID],
+      [id],
     );
     expect(row.rows[0].forward_status).toBe('not_set_up');
   });
 
   it('caps forwards per owner per hour, still keeps every reply, and counts only this owner', async () => {
     if (!db) return;
-    const owner = await db.createUser();
-    const other = await db.createUser();
-    await seedSentMessage(owner, PH331, 'Dee', '2026-12-03T10:00:00Z');
-    await seedSentMessage(other, PH332, 'Eve', '2026-12-03T10:00:00Z');
+    const [owner, other] = [await db.createUser(), await db.createUser()];
+    const [p1, p2] = [freshPhone(), freshPhone()];
+    await seedSentMessage(owner, p1, 'Dee', '2026-12-03T10:00:00Z');
+    await seedSentMessage(other, p2, 'Eve', '2026-12-03T10:00:00Z');
     await verifiedCell(owner, '+12395550997');
     await verifiedCell(other, '+12395550996');
-    const send = (phone: string, id: string) =>
-      db!.asService(async (c) => (await c.query(RECORD, [phone, id, 'ok', 30])).rows[0]);
+    const run = crypto.randomUUID();
+    const send = (who: TestUser, phone: string, id: string) =>
+      db!.asService(async (c) => (await c.query(RECORD, [who.id, phone, id, 'ok', 30])).rows[0]);
     const results = [];
-    for (let i = 0; i < 32; i++) results.push(await send(PH331, `SMcap${CAP_RUN}${i}`));
+    for (let i = 0; i < 32; i++) results.push(await send(owner, p1, `SMcap${run}${i}`));
     expect(results.filter((r) => r.forward)).toHaveLength(30);
     expect(results.slice(30).every((r) => !r.forward && !r.duplicate)).toBe(true);
     const stored = await db.pool.query(
@@ -258,6 +326,18 @@ describe.skipIf(!enabled)('rain_day.record_reply', () => {
       { forward_status: 'capped', n: 2 },
       { forward_status: 'pending', n: 30 },
     ]);
-    expect((await send(PH332, `SMother${CAP_RUN}`)).forward).toBe(true);
+    expect((await send(other, p2, `SMother${run}`)).forward).toBe(true);
+  });
+
+  it('contacted_customers lists only the caller’s customers who got a text', async () => {
+    if (!db) return;
+    const [owner, stranger] = [await db.createUser(), await db.createUser()];
+    const seeded = await seedSentMessage(owner, freshPhone(), 'Zoe', '2026-12-03T10:00:00Z');
+    const mine = await db.as(owner, (c) => c.query('select * from rain_day.contacted_customers()'));
+    expect(mine.rows.map((r) => r.contacted_customers)).toEqual([seeded.customerId]);
+    expect(
+      (await db.as(stranger, (c) => c.query('select * from rain_day.contacted_customers()')))
+        .rowCount,
+    ).toBe(0);
   });
 });

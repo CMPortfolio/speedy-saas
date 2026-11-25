@@ -1,8 +1,11 @@
 import type { Db } from '@speedy/db/core';
 import type { Database } from '@speedy/db/types';
+import { logger } from '@speedy/lib/logger';
 import type { E164 } from '@speedy/lib/phone';
 
-import type { RecordedReply, ReplyStore } from './handle-inbound';
+import { codeOf } from '@/features/rain-day/dispatch';
+
+import type { InboundStore, RecordedReply, ReplyStore } from './handle-inbound';
 
 type RecordReplyRow = Database['rain_day']['Functions']['record_reply']['Returns'][number];
 
@@ -29,42 +32,60 @@ function toRecorded(row: RecordReplyRow | undefined): RecordedReply {
   };
 }
 
+const log = logger.child({ feature: 'rain-day-reply-store' });
+
 /**
- * Reply store on the service-role client (a webhook has no signed-in user). Opt-out is per phone
- * number, across every owner: STOP stops texts from this business number, whoever sent them.
+ * Inbound store on the service-role client (a webhook has no signed-in user). The owner comes
+ * from the number that was texted; every query after that names that owner, because the service
+ * role bypasses RLS.
  */
-export function createReplyStore(db: Db): ReplyStore {
-  const customers = () => db.schema('rain_day').from('customers');
+export function createInboundStore(db: Db): InboundStore {
+  return {
+    async ownerForNumber(to: E164) {
+      const { data, error } = await db
+        .schema('rain_day')
+        .from('owner_settings')
+        .select('owner_id')
+        .eq('sender_number', to)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.owner_id ?? null;
+    },
+    forOwner: (ownerId) => createReplyStore(db, ownerId),
+  };
+}
+
+export function createReplyStore(db: Db, ownerId: string): ReplyStore {
   const optOuts = () => db.schema('rain_day').from('opt_outs');
   return {
     optOuts: {
-      // Any owner's STOP on file counts: STOP is to the business number, not to one owner.
       async isOptedOut(number) {
-        const { data, error } = await optOuts().select('id').eq('phone', number).limit(1);
+        const { data, error } = await optOuts()
+          .select('id')
+          .eq('owner_id', ownerId)
+          .eq('phone', number)
+          .limit(1);
         if (error) throw error;
         return data.length > 0;
       },
       async setOptedOut(number, optedOut) {
-        if (!optedOut) {
-          const { error } = await optOuts().delete().eq('phone', number);
+        if (optedOut) {
+          // Recorded by number for this owner, with or without a customer row.
+          const { error } = await optOuts().upsert(
+            { owner_id: ownerId, phone: number },
+            { onConflict: 'owner_id,phone', ignoreDuplicates: true },
+          );
           if (error) throw error;
           return;
         }
-        // One row per owner who has this number as a customer.
-        const { data, error } = await customers().select('owner_id').eq('phone', number);
+        const { error } = await optOuts().delete().eq('owner_id', ownerId).eq('phone', number);
         if (error) throw error;
-        const owners = [...new Set(data.map((c) => c.owner_id))];
-        if (owners.length === 0) return;
-        const { error: insertError } = await optOuts().upsert(
-          owners.map((owner_id) => ({ owner_id, phone: number })),
-          { onConflict: 'owner_id,phone', ignoreDuplicates: true },
-        );
-        if (insertError) throw insertError;
       },
     },
 
     async recordReply(input): Promise<RecordedReply> {
       const { data, error } = await db.schema('rain_day').rpc('record_reply', {
+        p_owner_id: ownerId,
         p_from: input.from,
         p_provider_message_id: input.providerMessageId,
         p_body: input.body.slice(0, 1600),
@@ -79,35 +100,32 @@ export function createReplyStore(db: Db): ReplyStore {
         .schema('rain_day')
         .from('replies')
         .update({ forward_status: status })
-        .eq('id', replyId);
+        .eq('id', replyId)
+        .eq('owner_id', ownerId);
       if (error) throw error;
     },
 
     async helpBusinessName(phone: E164) {
-      const { data: people, error } = await customers().select('id, owner_id').eq('phone', phone);
-      if (error) throw error;
-      if (people.length === 0) return null;
-      // The owner who texted this number most recently, else any owner who has them.
-      const { data: latest } = await db
+      const { data: known, error } = await db
         .schema('rain_day')
-        .from('reschedule_messages')
-        .select('customer_id')
-        .in(
-          'customer_id',
-          people.map((p) => p.id),
-        )
-        .not('sent_at', 'is', null)
-        .order('sent_at', { ascending: false })
+        .from('customers')
+        .select('id')
+        .eq('owner_id', ownerId)
+        .eq('phone', phone)
         .limit(1);
-      const owner =
-        people.find((p) => p.id === latest?.[0]?.customer_id)?.owner_id ?? people[0]?.owner_id;
-      if (!owner) return null;
-      const { data: profile } = await db
+      if (error) throw error;
+      if (known.length === 0) return null;
+      const { data: profile, error: profileError } = await db
         .from('profiles')
         .select('business_name')
-        .eq('id', owner)
+        .eq('id', ownerId)
         .maybeSingle();
-      return profile?.business_name?.trim() || 'Rain Day';
+      if (profileError) {
+        log.warn('business name lookup failed', { code: codeOf(profileError) });
+        return 'Rain Day';
+      }
+      const name = profile?.business_name?.trim();
+      return name ? name : 'Rain Day';
     },
 
     async claimHelp(phone: E164) {

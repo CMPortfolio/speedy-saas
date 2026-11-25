@@ -1,7 +1,9 @@
+import { createServerSupabase } from '@speedy/auth/server';
 import { getOptionalUser } from '@speedy/auth/user';
 
 import { env } from '@/config/env';
 import { getSms, isFakeSms } from '@/config/sms';
+import { getOwnerSettings } from '@/features/settings/owner-cell';
 
 /**
  * Gate for /api/dev/sms/*: 404 unless SMS_PROVIDER=fake outside production, and 401 unless an
@@ -14,8 +16,8 @@ export async function devSmsGuard() {
   const provider = getSms();
   if (!isFakeSms(provider))
     return { response: new Response('Not found', { status: 404 }) } as const;
-  if (!(await getOptionalUser())) {
-    return { response: new Response('Sign in first', { status: 401 }) } as const;
-  }
-  return { provider } as const;
+  const user = await getOptionalUser();
+  if (!user) return { response: new Response('Sign in first', { status: 401 }) } as const;
+  const settings = await getOwnerSettings(await createServerSupabase());
+  return { provider, userId: user.id, senderNumber: settings?.sender_number ?? null } as const;
 }

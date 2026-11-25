@@ -1,33 +1,46 @@
 'use server';
 
-import { createServiceSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { logger } from '@speedy/lib/logger';
-import { normalizeUsPhone } from '@speedy/lib/phone';
+import { isUsDomesticPhone, normalizeUsPhone } from '@speedy/lib/phone';
 import { checkPhoneVerification, startPhoneVerification } from '@speedy/sms/verify-phone';
 import { revalidatePath } from 'next/cache';
 
-import { getSms, getSmsFrom } from '@/config/sms';
+import { getSms, devDefaultSender } from '@/config/sms';
+import { codeOf } from '@/features/rain-day/dispatch';
 
-import { removeVerifiedCell, saveVerifiedCell } from './owner-cell';
+import {
+  getOwnerSettings,
+  NO_SENDER_MESSAGE,
+  removeVerifiedCell,
+  saveVerifiedCell,
+  senderNumberOf,
+} from './owner-cell';
 import { createVerifyStore } from './verify-store';
 
 export type CellResult = { ok: true; message?: string } | { ok: false; message: string };
 
 const FAILED = 'We could not do that just now. Try again in a minute.';
 
-/** Text a 6-digit code to the number the owner typed. Three codes an hour. */
+/** Text a 6-digit code to the number the owner typed. Three codes an hour, six a day. */
 export async function sendCellCode(phone: string): Promise<CellResult> {
   const user = await requireUser('/settings');
   const cell = normalizeUsPhone(phone);
   if (!cell) return { ok: false, message: 'Enter a 10-digit US cell number.' };
+  // Texting Canada and the Caribbean is billed as international, so US area codes only.
+  if (!isUsDomesticPhone(cell)) return { ok: false, message: 'Rain Day texts US numbers only.' };
   try {
+    // The code comes from the owner's own number; the dev default exists only for the fake provider.
+    const from =
+      senderNumberOf(await getOwnerSettings(await createServerSupabase())) ?? devDefaultSender();
+    if (!from) return { ok: false, message: NO_SENDER_MESSAGE };
     const result = await startPhoneVerification(
       { provider: getSms(), store: createVerifyStore(createServiceSupabase()) },
       {
         subject: user.id,
         phone: cell,
-        from: getSmsFrom(),
+        from,
         message: (code) => `Your Rain Day code is ${code}. It expires in 10 minutes.`,
       },
     );
@@ -38,7 +51,7 @@ export async function sendCellCode(phone: string): Promise<CellResult> {
     }
     return { ok: false, message: FAILED };
   } catch (error) {
-    logger.error('rain-day: send cell code failed', { error });
+    logger.error('rain-day: send cell code failed', { code: codeOf(error) });
     return { ok: false, message: FAILED };
   }
 }
@@ -68,7 +81,7 @@ export async function confirmCellCode(code: string): Promise<CellResult> {
       return { ok: false, message: VERIFY_MESSAGES.wrong(outcome.attemptsLeft) };
     return { ok: false, message: VERIFY_MESSAGES[outcome.status] };
   } catch (error) {
-    logger.error('rain-day: confirm cell code failed', { error });
+    logger.error('rain-day: confirm cell code failed', { code: codeOf(error) });
     return { ok: false, message: FAILED };
   }
 }
@@ -81,7 +94,7 @@ export async function removeCell(): Promise<CellResult> {
     revalidatePath('/settings');
     return { ok: true };
   } catch (error) {
-    logger.error('rain-day: remove cell failed', { error });
+    logger.error('rain-day: remove cell failed', { code: codeOf(error) });
     return { ok: false, message: FAILED };
   }
 }

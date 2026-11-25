@@ -5,14 +5,15 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@speedy/ui/button';
 import { EmptyState } from '@speedy/ui/empty-state';
-import { Input } from '@speedy/ui/input';
 
 import { ButtonLink } from '@/components/button-link';
 import { addDays, describeNewDay } from '@/lib/dates';
+import { NO_SENDER_MESSAGE } from '@/features/settings/owner-cell';
 import { weekdayName } from '@/lib/weekday';
 
 import { sendRainDay } from './actions';
 import { ConfirmSendModal, texts } from './confirm-send-modal';
+import { DatePickers } from './date-pickers';
 import { CustomerRow, type FormCustomer } from './customer-row';
 import { MessageField } from './message-field';
 
@@ -24,6 +25,9 @@ export interface RainDayFormProps {
   day: number;
   customers: FormCustomer[];
   initialTemplate: string;
+  businessName: string;
+  /** False until an admin has given this owner a texting number: Send stays off. */
+  senderReady: boolean;
 }
 
 export function RainDayForm({
@@ -33,6 +37,8 @@ export function RainDayForm({
   day,
   customers,
   initialTemplate,
+  businessName,
+  senderReady,
 }: RainDayFormProps) {
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
@@ -49,7 +55,7 @@ export function RainDayForm({
   const skipped = customers.filter((c) => c.skip).length;
   const dateError =
     from === to ? 'Pick a different day.' : to < today ? 'Pick today or later.' : undefined;
-  const canSend = sendable.length > 0 && template.trim() !== '' && !dateError;
+  const canSend = senderReady && sendable.length > 0 && template.trim() !== '' && !dateError;
 
   function go(nextFrom: string, nextTo: string) {
     startNavigation(() => router.replace(`/rain-day?from=${nextFrom}&to=${nextTo}`));
@@ -83,28 +89,17 @@ export function RainDayForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Day that's off"
-          type="date"
-          name="from"
-          value={from}
-          onChange={(e) => {
-            // Keep "the day after" as the new day unless the owner picked something else.
-            if (e.target.value)
-              go(e.target.value, to === addDays(from, 1) ? addDays(e.target.value, 1) : to);
-          }}
-        />
-        <Input
-          label="Move them to"
-          type="date"
-          name="to"
-          value={to}
-          min={today}
-          onChange={(e) => e.target.value && go(from, e.target.value)}
-          error={dateError}
-        />
-      </div>
+      <DatePickers
+        from={from}
+        to={to}
+        today={today}
+        error={dateError}
+        onFrom={(value) =>
+          // Keep "the day after" as the new day unless the owner picked something else.
+          go(value, to === addDays(from, 1) ? addDays(value, 1) : to)
+        }
+        onTo={(value) => go(from, value)}
+      />
 
       {customers.length === 0 ? (
         <EmptyState
@@ -126,12 +121,18 @@ export function RainDayForm({
                   ticked={!c.skip && !unticked.has(c.id)}
                   newDay={newDay}
                   template={template}
+                  businessName={businessName}
                   onToggle={toggle}
                 />
               ))}
             </ul>
           </section>
           <MessageField value={template} onChange={setTemplate} />
+          {!senderReady && (
+            <p role="status" className="text-sm text-ink">
+              {NO_SENDER_MESSAGE}
+            </p>
+          )}
           {error && (
             <p role="alert" className="text-sm text-danger">
               {error}

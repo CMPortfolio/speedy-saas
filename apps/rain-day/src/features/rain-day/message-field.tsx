@@ -19,7 +19,7 @@ export function MessageField({ value, onChange }: MessageFieldProps) {
         maxLength={480}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-tap w-full rounded-brand border border-border bg-surface px-3 py-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="min-h-tap w-full rounded-brand border border-field bg-surface px-3 py-2 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         aria-describedby="template-hint"
       />
       <p id="template-hint" className="text-sm text-muted">

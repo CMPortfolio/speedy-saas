@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, Newsreader } from 'next/font/google';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -8,6 +9,19 @@ import { AppShell } from '@speedy/ui/shell';
 import { tool } from '../../tool.config';
 
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-newsreader',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? `http://localhost:${tool.devPort}`),
@@ -25,7 +39,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 const navLink =
-  'inline-flex min-h-tap items-center rounded-brand px-2 text-sm font-medium text-ink hover:text-primary';
+  'inline-flex min-h-tap items-center rounded-brand px-2 text-sm font-medium text-ink-2 hover:text-brand-deep';
 
 /** Both links need sign-in; the proxy sends signed-out owners to /sign-in and back. */
 function HeaderNav() {
@@ -46,7 +60,7 @@ function HeaderNav() {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${newsreader.variable}`}>
       <body>
         <AppShell
           toolName={tool.name}

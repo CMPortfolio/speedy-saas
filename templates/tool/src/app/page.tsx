@@ -12,8 +12,8 @@ export default function LandingPage() {
   return (
     <section className="space-y-6 py-6">
       <header className="space-y-3">
-        <h1 className="text-3xl font-semibold leading-tight">{tool.name}</h1>
-        <p className="text-lg text-muted">{tool.scope}</p>
+        <h1 className="text-3xl font-semibold leading-tight">{tool.headline}</h1>
+        <p className="text-lg text-muted">{tool.lede}</p>
       </header>
       <Link
         href="/start"

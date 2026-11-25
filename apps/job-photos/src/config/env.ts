@@ -12,6 +12,8 @@ export const env = createEnv({
     APP_URL: z.url().default('http://localhost:3001'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     NODE_ENV: envHelpers.nodeEnv,
+    /** Where photos go. "memory" is for development only; see lib/storage-driver.ts. */
+    STORAGE_DRIVER: z.enum(['supabase', 'memory']).default('supabase'),
   },
   client: { ...authEnvSchema.client },
   skipValidation: process.env.SKIP_ENV_VALIDATION === '1',

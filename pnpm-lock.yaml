@@ -164,6 +164,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      server-only:
+        specifier: 'catalog:'
+        version: 0.0.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -180,6 +183,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.1
@@ -189,6 +195,9 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.5(jiti@2.7.0)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
       postcss:
         specifier: 'catalog:'
         version: 8.5.33
@@ -333,6 +342,9 @@ importers:
 
   packages/lib:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.119.2
       resend:
         specifier: 'catalog:'
         version: 6.39.0

@@ -26,10 +26,16 @@ tests/          Playwright one-moment test(s); tests/unit for Vitest
 tool.config.ts  slug, name, scope line, schema, dev port, URL
 ```
 
+## Storage
+
+Photos go to the private Supabase Storage bucket `job-photos` through the adapter in
+`@speedy/lib/photos`. `STORAGE_DRIVER=memory` keeps them in the server process instead, for
+development without a Supabase project; it is refused when `NODE_ENV=production`.
+
 ## Database
 
 This tool's tables live in the Postgres schema `job_photos` in the shared Supabase project.
-Migrations go in `packages/db/supabase/migrations/` (one was created with the scaffold). Every
+Migrations go in `packages/db/supabase/migrations/` (`*_job_photos_init.sql` and `*_job_photos_tables.sql`). Every
 table has RLS with a policy per operation. After a migration run `pnpm db:types` and commit.
 Expose the schema to the API: `api.schemas` in `packages/db/supabase/config.jsonc` locally and
 the hosted project's API settings in production.

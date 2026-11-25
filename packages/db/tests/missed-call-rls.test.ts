@@ -116,18 +116,22 @@ describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_
 
     it('an owner can create and edit their own line but never set the provider number', async () => {
       if (!db) return;
-      await db.as(bob, async (c) => {
-        const made = await c.query<{ id: string }>(
-          `insert into missed_call.lines (owner_id, owner_cell, business_name, template)
-           values ($1, '+12395550104', 'Bob Two', 'hi') returning id`,
-          [bob.id],
-        );
-        const edited = await c.query(
-          "update missed_call.lines set template = 'Call you back soon' where id = $1",
-          [made.rows[0]!.id],
-        );
-        expect(edited.rowCount).toBe(1);
-      });
+      const edited = await db.as(bob, (c) =>
+        c.query("update missed_call.lines set template = 'Call you back soon' where id = $1", [
+          bobLine,
+        ]),
+      );
+      expect(edited.rowCount).toBe(1);
+      // v1 is one line per owner.
+      await expect(
+        db.as(bob, (c) =>
+          c.query(
+            `insert into missed_call.lines (owner_id, owner_cell, business_name, template)
+             values ($1, '+12395550104', 'Bob Two', 'hi')`,
+            [bob.id],
+          ),
+        ),
+      ).rejects.toMatchObject({ code: '23505' });
       await expect(
         db.as(bob, (c) =>
           c.query(

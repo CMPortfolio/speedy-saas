@@ -323,6 +323,45 @@ export type Database = {
           },
         ];
       };
+      cell_verifications: {
+        Row: {
+          owner_id: string;
+          phone: string;
+          code_hash: string;
+          salt: string;
+          expires_at: string;
+          attempts: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          owner_id: string;
+          phone: string;
+          code_hash: string;
+          salt: string;
+          expires_at: string;
+          attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          owner_id?: string;
+          phone?: string;
+          code_hash?: string;
+          salt?: string;
+          expires_at?: string;
+          attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      cell_verification_sends: {
+        Row: { id: string; owner_id: string; created_at: string; updated_at: string };
+        Insert: { id?: string; owner_id: string; created_at?: string; updated_at?: string };
+        Update: { id?: string; owner_id?: string; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -357,6 +396,12 @@ export type Database = {
         Returns: string | null;
       };
       clear_opt_out: { Args: { p_line_id: string; p_number: string }; Returns: undefined };
+      reserve_cell_code_send: {
+        Args: { p_owner_id: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
+      };
+      consume_cell_attempt: { Args: { p_owner_id: string }; Returns: number | null };
+      confirm_owner_cell: { Args: { p_owner_id: string; p_phone: string }; Returns: boolean };
       mark_call: {
         Args: { p_call_id: string; p_status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk' };
         Returns: undefined;

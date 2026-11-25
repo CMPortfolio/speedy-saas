@@ -1,9 +1,9 @@
 -- missed-call security and code review lows.
 --
--- * record_reply: a per line daily cap of 200 forwards, and a per caller storage cap of 50 replies
---   a day. Past 50 the reply is dropped (outcome `dropped`, nothing stored), so one number cannot
---   fill the table. The forward caps are unchanged (5 an hour and 20 a day per caller, 30 an hour
---   per line) and still save the reply but do not forward it.
+-- * record_reply: a per line cap of 200 replies a day, and a per caller storage cap of 50 replies a
+--   day. Past 50 the reply is dropped (outcome `dropped`, nothing stored), so one number cannot
+--   fill the table. Past any of the forward caps (5 an hour and 20 a day per caller, 30 an hour and
+--   200 a day per line) the reply is saved but not forwarded.
 -- * claim_help_reply: HELP answers are marked with messages.kind = 'help' and matched on that,
 --   not on the wording. It returns the new message id so a failed send can release the claim.
 -- * clear_opt_out: START lifts a STOP, and puts the junk block back if the owner still has a call

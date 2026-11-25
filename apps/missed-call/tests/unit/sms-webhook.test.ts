@@ -69,7 +69,7 @@ describe('inbound text webhook', () => {
   it('forwards a reply end to end through the fake provider', async () => {
     const sms = fakeProvider();
     const mem = memoryStore([line]);
-    await mem.store.logMissedCall(line.id, '+12395550123', 'CA1');
+    await mem.store.logMissedCall(line.id, '+12395550123', 'CA1', true);
     const signed = sms.inbound({
       kind: 'inbound',
       from: '+12395550123',

@@ -1,5 +1,5 @@
 import { logger } from '@speedy/lib/logger';
-import { formatUsPhone, maskUsPhone } from '@speedy/lib/phone';
+import { formatUsPhone, isUsDomesticPhone, maskUsPhone } from '@speedy/lib/phone';
 import { classifyKeyword, helpReply } from '@speedy/sms/keywords';
 import type { InboundMessage, SmsProvider } from '@speedy/sms/provider';
 import { applyOptOutKeyword } from '@speedy/sms/send';
@@ -38,6 +38,12 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
     return;
   }
 
+  // Same rule as the auto-text: nothing is sent to or because of a number outside the US.
+  if (!isUsDomesticPhone(message.from)) {
+    log.warn('reply from a non-US number ignored', { caller: maskUsPhone(message.from) });
+    return;
+  }
+
   const keyword = classifyKeyword(message.body);
   if (keyword === 'stop' || keyword === 'start') {
     await applyOptOutKeyword(store.optOuts(line.id), message.from, keyword);
@@ -64,6 +70,14 @@ export async function handleReply(deps: ReplyDeps, message: InboundMessage): Pro
     outcome: saved.outcome,
   });
   if (saved.outcome !== 'recorded') return;
+  if (!saved.forward) {
+    log.warn('reply forward cap reached for line', { line: line.id });
+    return;
+  }
+  if (!isUsDomesticPhone(line.ownerCell)) {
+    log.warn('owner cell is not a US number, reply not forwarded', { line: line.id });
+    return;
+  }
 
   const sent = await provider.sendText({
     to: line.ownerCell as `+1${string}`,

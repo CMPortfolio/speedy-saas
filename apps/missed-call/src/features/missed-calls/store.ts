@@ -24,6 +24,8 @@ export type ReplyOutcome = 'recorded' | 'duplicate' | 'blocked' | 'no_call';
 export interface ReplyResult {
   callId: string | null;
   outcome: ReplyOutcome;
+  /** False once the line has had 30 replies forwarded in the last hour (the reply is still saved). */
+  forward: boolean;
 }
 
 export interface LogResult {
@@ -144,7 +146,7 @@ export function supabaseStore(client: SupabaseClient<Database>): MissedCallStore
       });
       const row = data?.[0];
       if (error || !row) fail('record reply', error?.message);
-      return { callId: row.call_id, outcome: row.outcome as ReplyOutcome };
+      return { callId: row.call_id, outcome: row.outcome as ReplyOutcome, forward: row.forward };
     },
 
     async releaseTextClaim(callId) {

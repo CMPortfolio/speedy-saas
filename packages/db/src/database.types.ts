@@ -333,8 +333,14 @@ export type Database = {
         Returns: { call_id: string; outcome: string; first_contact: boolean }[];
       };
       record_reply: {
-        Args: { p_line_id: string; p_caller: string; p_body: string; p_provider_message_id: string };
-        Returns: { call_id: string | null; outcome: string }[];
+        Args: {
+          p_line_id: string;
+          p_caller: string;
+          p_body: string;
+          p_provider_message_id: string;
+          p_forward_cap?: number;
+        };
+        Returns: { call_id: string | null; outcome: string; forward: boolean }[];
       };
       mark_call: {
         Args: { p_call_id: string; p_status: 'missed' | 'texted' | 'replied' | 'called_back' | 'booked' | 'junk' };

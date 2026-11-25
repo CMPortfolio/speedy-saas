@@ -132,4 +132,28 @@ describe('handleReply', () => {
     await miss();
     expect(sms.sent).toHaveLength(0);
   });
+
+  it('ignores a text from a Canadian or Caribbean number: nothing saved, nothing forwarded', async () => {
+    for (const from of ['+14165550123', '+18765550123', '+17875550123']) {
+      await reply(text('hello', { from: from as InboundMessage['from'] }));
+    }
+    expect(sms.sent).toHaveLength(0);
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(0);
+  });
+
+  it('saves the reply but does not forward it when the owner cell is not a US number', async () => {
+    mem = memoryStore([{ ...line, ownerCell: '+14165550101' }]);
+    await miss();
+    sms.reset();
+    await reply(text('need a quote'));
+    expect(mem.calls[0]?.status).toBe('replied');
+    expect(sms.sent).toHaveLength(0);
+  });
+
+  it('forwards 30 replies in an hour, saves the rest without forwarding', async () => {
+    for (let i = 0; i < 35; i += 1)
+      await reply(text(`reply ${i}`, { providerMessageId: `SMC${i}` }));
+    expect(sms.sent).toHaveLength(30);
+    expect(mem.messages.filter((m) => m.direction === 'in')).toHaveLength(35);
+  });
 });

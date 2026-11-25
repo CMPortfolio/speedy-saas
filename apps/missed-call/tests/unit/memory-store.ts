@@ -80,13 +80,17 @@ export function memoryStore(lines: LineRecord[], now: () => Date = () => new Dat
     async recordReply(lineId, caller, body, providerMessageId) {
       touched += 1;
       const dup = messages.find((m) => m.providerMessageId === providerMessageId);
-      if (dup) return { callId: dup.callId, outcome: 'duplicate' };
-      if (blocked.has(key(lineId, caller))) return { callId: null, outcome: 'blocked' };
+      if (dup) return { callId: dup.callId, outcome: 'duplicate', forward: false };
+      if (blocked.has(key(lineId, caller)))
+        return { callId: null, outcome: 'blocked', forward: false };
       const latest = calls.filter((c) => c.lineId === lineId && c.caller === caller).at(-1);
-      if (!latest) return { callId: null, outcome: 'no_call' };
+      if (!latest) return { callId: null, outcome: 'no_call', forward: false };
+      const recent = messages.filter(
+        (m) => m.direction === 'in' && calls.find((c) => c.id === m.callId)?.lineId === lineId,
+      ).length;
       messages.push({ callId: latest.id, direction: 'in', body, providerMessageId });
       if (latest.status === 'missed' || latest.status === 'texted') latest.status = 'replied';
-      return { callId: latest.id, outcome: 'recorded' };
+      return { callId: latest.id, outcome: 'recorded', forward: recent < 30 };
     },
 
     async releaseTextClaim(callId) {

@@ -4,6 +4,7 @@ import { createServerSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { getProfile } from '@speedy/db/core';
 
+import { ButtonLink } from '@/components/button-link';
 import { listCustomersForDay } from '@/features/rain-day/queries';
 import { RainDayForm } from '@/features/rain-day/rain-day-form';
 import { defaultTemplate } from '@/features/rain-day/template';
@@ -35,6 +36,14 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
           their own text.
         </p>
       </header>
+      <nav aria-label="Rain day pages" className="grid grid-cols-2 gap-2">
+        <ButtonLink href="/rain-day/replies" variant="secondary">
+          Replies
+        </ButtonLink>
+        <ButtonLink href="/rain-day/history" variant="secondary">
+          Past rain days
+        </ButtonLink>
+      </nav>
       <RainDayForm
         from={from}
         to={to}

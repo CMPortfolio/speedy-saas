@@ -11,6 +11,13 @@ import { getReschedule, listRescheduleMessages } from '@/features/rain-day/queri
 import { weekdayName } from '@/lib/weekday';
 import { weekdayOf } from '@/lib/dates';
 
+const sentAt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 export const metadata: Metadata = { title: 'Rain day sent' };
 
 const LABELS: Record<string, string> = {
@@ -61,6 +68,9 @@ export default async function RescheduleResultPage({
               <span className="text-sm font-medium text-ink">{LABELS[m.status] ?? m.status}</span>
             </div>
             {m.status !== 'skipped' && <p className="text-sm text-muted">{m.body}</p>}
+            {m.sent_at && (
+              <p className="text-sm text-muted">Sent {sentAt.format(new Date(m.sent_at))}</p>
+            )}
           </li>
         ))}
       </ul>

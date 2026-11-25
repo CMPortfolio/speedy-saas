@@ -42,3 +42,36 @@ export async function listRescheduleMessages(
   if (error) throw error;
   return data;
 }
+
+export interface RescheduleSummary {
+  reschedule: Reschedule;
+  counts: Record<string, number>;
+}
+
+/** The owner's latest rain days with how many texts are in each status. RLS limits rows. */
+export async function listRescheduleSummaries(db: Db, limit = 20): Promise<RescheduleSummary[]> {
+  const { data: reschedules, error } = await db
+    .schema('rain_day')
+    .from('reschedules')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  if (reschedules.length === 0) return [];
+  const { data: messages, error: messagesError } = await db
+    .schema('rain_day')
+    .from('reschedule_messages')
+    .select('reschedule_id, status')
+    .in(
+      'reschedule_id',
+      reschedules.map((r) => r.id),
+    );
+  if (messagesError) throw messagesError;
+  return reschedules.map((reschedule) => {
+    const counts: Record<string, number> = {};
+    for (const m of messages) {
+      if (m.reschedule_id === reschedule.id) counts[m.status] = (counts[m.status] ?? 0) + 1;
+    }
+    return { reschedule, counts };
+  });
+}

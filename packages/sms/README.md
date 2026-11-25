@@ -7,16 +7,17 @@ until Chris picks a provider). A Telnyx or Plivo adapter would be one more file 
 
 ## Exports
 
-| Import                 | What it is                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| `@speedy/sms/provider` | `SmsProvider` interface and the event types (`InboundMessage`, `CallStatusEvent`, `DeliveryEvent`)      |
-| `@speedy/sms/twilio`   | `twilioProvider(options)`, `verifyTwilioSignature`, `parseTwilioWebhook`, `twimlHangup()`, `twimlSay()` |
-| `@speedy/sms/fake`     | `fakeProvider()`: in-memory provider with `sent[]`, `inbound(event)`, `failNext()`, `reset()`           |
-| `@speedy/sms/webhook`  | `handleWebhook(provider, req, handlers)`, `fromNextRequest(request)`, `toResponse(res)`                 |
-| `@speedy/sms/keywords` | `classifyKeyword(body)`, `helpReply(business)`, `withOptOutFooter(body, business)`                      |
-| `@speedy/sms/send`     | `OptOutStore` interface, `sendFirstOrFollowup(provider, store, input)`, `applyOptOutKeyword`            |
-| `@speedy/sms/env`      | `smsEnvSchema` to spread into a tool's `createEnv`                                                      |
-| `@speedy/sms/create`   | `createSmsProvider(env)`: picks fake or Twilio from env, refuses fake in production                     |
+| Import                     | What it is                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@speedy/sms/provider`     | `SmsProvider` interface and the event types (`InboundMessage`, `CallStatusEvent`, `DeliveryEvent`)                                   |
+| `@speedy/sms/twilio`       | `twilioProvider(options)`, `verifyTwilioSignature`, `parseTwilioWebhook`, `twimlHangup()`, `twimlSay()`                              |
+| `@speedy/sms/fake`         | `fakeProvider()`: in-memory provider with `sent[]`, `inbound(event)`, `failNext()`, `reset()`                                        |
+| `@speedy/sms/webhook`      | `handleWebhook(provider, req, handlers)`, `fromNextRequest(request)`, `toResponse(res)`                                              |
+| `@speedy/sms/keywords`     | `classifyKeyword(body)`, `helpReply(business)`, `withOptOutFooter(body, business)`                                                   |
+| `@speedy/sms/send`         | `OptOutStore` interface, `sendFirstOrFollowup(provider, store, input)`, `applyOptOutKeyword`                                         |
+| `@speedy/sms/verify-phone` | `startPhoneVerification`, `checkPhoneVerification`, `VerifyStore` interface, `VERIFY_RULES`: prove a cell with a texted 6-digit code |
+| `@speedy/sms/env`          | `smsEnvSchema` to spread into a tool's `createEnv`                                                                                   |
+| `@speedy/sms/create`       | `createSmsProvider(env)`: picks fake or Twilio from env, refuses fake in production                                                  |
 
 No barrel file; import each path (CLAUDE.md rule 4).
 
@@ -168,6 +169,32 @@ sms.sent; // every text the code under test sent
 To exercise a real Twilio webhook locally, run `ngrok http 3001`, set `SMS_WEBHOOK_PUBLIC_URL`
 to the ngrok origin and paste the ngrok URLs into a trial number. Use a Twilio test account; never
 real customer numbers from development (CLAUDE.md).
+
+## Verifying a cell number
+
+Before a tool texts an owner's phone (forwarding replies, alerts), prove the owner controls it.
+`@speedy/sms/verify-phone` holds the rules, so every tool behaves the same:
+
+- the code is 6 digits and expires after 10 minutes;
+- five wrong tries kill it (the sixth call gets `none`: ask for a new code);
+- three codes may be texted per subject per hour (`rate_limited`, nothing is sent);
+- only a salted SHA-256 of the code is stored, compared in constant time, never logged.
+
+The tool supplies storage behind `VerifyStore`. `reserveSend` (count and record) and
+`consumeAttempt` (increment and return) must be atomic, for example SQL functions, or two
+requests at once could get past the limits. rain-day's store lives in its own schema
+(`apps/rain-day/src/features/settings/verify-store.ts`).
+
+```ts
+const started = await startPhoneVerification(
+  { provider: sms, store },
+  { subject: user.id, phone: cell, from: businessNumber },
+);
+// later, with what the owner typed:
+const outcome = await checkPhoneVerification({ store }, { subject: user.id, code });
+if (outcome.status === 'verified') await saveVerifiedCell(user.id, outcome.phone);
+// 'wrong' (attemptsLeft) | 'expired' | 'locked' | 'none'
+```
 
 ## Out of scope here
 

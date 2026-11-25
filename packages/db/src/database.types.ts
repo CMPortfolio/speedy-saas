@@ -43,9 +43,27 @@ export type Database = {
         Relationships: [];
       };
       organizations: {
-        Row: { id: string; name: string; created_by: string; created_at: string; updated_at: string };
-        Insert: { id?: string; name: string; created_by: string; created_at?: string; updated_at?: string };
-        Update: { id?: string; name?: string; created_by?: string; created_at?: string; updated_at?: string };
+        Row: {
+          id: string;
+          name: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       memberships: {
@@ -269,9 +287,149 @@ export type Database = {
         };
         Relationships: [];
       };
+      owner_settings: {
+        Row: {
+          owner_id: string;
+          owner_cell: string | null;
+          owner_cell_verified_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          owner_id: string;
+          owner_cell?: string | null;
+          owner_cell_verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          owner_id?: string;
+          owner_cell?: string | null;
+          owner_cell_verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      phone_verifications: {
+        Row: {
+          owner_id: string;
+          phone: string;
+          code_hash: string;
+          salt: string;
+          expires_at: string;
+          attempts: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          owner_id: string;
+          phone: string;
+          code_hash: string;
+          salt: string;
+          expires_at: string;
+          attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          owner_id?: string;
+          phone?: string;
+          code_hash?: string;
+          salt?: string;
+          expires_at?: string;
+          attempts?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      verification_sends: {
+        Row: {
+          id: string;
+          owner_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      replies: {
+        Row: {
+          id: string;
+          owner_id: string;
+          customer_id: string | null;
+          customer_name: string;
+          reschedule_message_id: string | null;
+          body: string;
+          provider_message_id: string | null;
+          forward_status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          customer_id?: string | null;
+          customer_name: string;
+          reschedule_message_id?: string | null;
+          body: string;
+          provider_message_id?: string | null;
+          forward_status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          reschedule_message_id?: string | null;
+          body?: string;
+          provider_message_id?: string | null;
+          forward_status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
+      consume_verification_attempt: {
+        Args: { p_owner_id: string };
+        Returns: number | null;
+      };
+      record_reply: {
+        Args: {
+          p_from: string;
+          p_provider_message_id: string;
+          p_body: string;
+          p_forward_cap: number;
+        };
+        Returns: {
+          matched: boolean;
+          duplicate: boolean;
+          reply_id: string | null;
+          owner_id: string | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          owner_cell: string | null;
+          forward: boolean;
+        }[];
+      };
+      reserve_verification_send: {
+        Args: { p_owner_id: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
+      };
       create_reschedule: {
         Args: {
           p_idempotency_key: string;
@@ -288,9 +446,12 @@ export type Database = {
   };
 };
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
-export type InsertOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert'];
-export type UpdateOf<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update'];
+export type Tables<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row'];
+export type InsertOf<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Insert'];
+export type UpdateOf<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Update'];
 
 /** Row types for a tool's own schema, e.g. `SchemaTables<'rain_day', 'customers'>`. */
 export type SchemaTables<

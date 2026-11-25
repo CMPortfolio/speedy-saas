@@ -106,7 +106,8 @@ export const TOOLS: readonly Tool[] = [
     slug: 'rain-day',
     name: 'Rain Day',
     pitch: 'Rained out? Pick the day and the new day; every customer gets their own text.',
-    // Railway project "speedy-saas", service rain-day. Set live when the engineer says so.
+    // Railway project "speedy-saas" (26cb37f8-e9e1-4a3d-8681-180d53e2bb3a), service rain-day
+    // (88775d46-e2fc-4cc7-bd5c-d5d5fb478727), custom domain attached. Set live when the engineer says so.
     url: 'https://rain-day.naplesaiagency.com',
     tradeTags: ['lawn', 'pool', 'outdoor', 'home-services'],
     status: 'building',

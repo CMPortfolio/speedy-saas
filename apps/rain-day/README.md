@@ -2,7 +2,7 @@ When weather wipes out a day, the owner picks the day, picks the new day, and ev
 
 # Rain Day
 
-Speedy SaaS tool `rain-day`. Lives at `https://rain-day.naplesaiagency.com`. Tickets: [R1 scaffold](https://app.clickup.com/t/1dfc7p9xnj1), [R2 settings and customers](https://app.clickup.com/t/1dfc7p9xnj2), [R3 send flow](https://app.clickup.com/t/1dfc7p9xnj3), [R4 replies](https://app.clickup.com/t/1dfc7p9xnj4), [R5 landing page and end-to-end](https://app.clickup.com/t/1dfc7p9xnj5).
+Speedy SaaS tool `rain-day`. Lives at `https://rain-day.naplesaiagency.com`. Tickets: [R1 scaffold](https://app.clickup.com/t/1dfc7p9xnj1), [R2 settings and customers](https://app.clickup.com/t/1dfc7p9xnj2), [R3 send flow](https://app.clickup.com/t/1dfc7p9xnj3), [R4 replies](https://app.clickup.com/t/1dfc7p9xnj4), [R5 landing page and end-to-end](https://app.clickup.com/t/1dfc7p9xnj5), [R6 deploy config and launch checklist](https://app.clickup.com/t/1dfc7p9xnj6). Taking it live: see [LAUNCH.md](./LAUNCH.md).
 
 The moment: 2 PM, a storm parks over the route, 14 Tuesday customers get their own text in one
 tap. Sign-in is required because the tool keeps customer phone numbers.

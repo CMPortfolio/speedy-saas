@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { PHOTO_KINDS } from '@/config/constants';
 
+import { reviewUrlSchema } from './review-url';
+
 /** Empty strings from forms become null so they never overwrite a column with "". */
 const optionalText = (max: number) =>
   z
@@ -16,6 +18,12 @@ export const jobDetailsSchema = z.object({
   title: optionalText(120),
   note: optionalText(300),
   business_name: optionalText(120),
+  review_url: z
+    .preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+      reviewUrlSchema.nullable(),
+    )
+    .optional(),
 });
 export type JobDetails = z.infer<typeof jobDetailsSchema>;
 
@@ -41,6 +49,8 @@ export const jobIdSchema = z.uuid();
 export interface CreatedJob {
   id: string;
   shareSlug: string;
+  /** `${APP_URL}/j/<shareSlug>`: what the owner sends to the customer. */
+  shareUrl: string;
   claimToken: string;
 }
 

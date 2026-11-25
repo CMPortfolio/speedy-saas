@@ -9,12 +9,14 @@ import { cn } from '@speedy/ui/cn';
 import { Input } from '@speedy/ui/input';
 
 import { LOGO_MAX_EDGE } from '@/config/constants';
+import { checkReviewUrl } from '@/features/jobs/review-url';
 import type { DeviceBusiness } from '@/hooks/use-device-business';
 
 export interface JobDetailsValues {
   title: string;
   businessName: string;
   logoDataUrl: string | null;
+  reviewUrl: string | null;
 }
 
 export interface JobDetailsStepProps {
@@ -34,7 +36,68 @@ async function toDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-/** Step 1: optional job name, business name and logo. Business details are remembered on the phone. */
+interface LogoPickerProps {
+  logoDataUrl: string | null;
+  onChange: (logoDataUrl: string | null) => void;
+}
+
+/** Optional logo, shrunk in the browser and kept on the phone as a small data URL. */
+function LogoPicker({ logoDataUrl, onChange }: LogoPickerProps) {
+  const id = useId();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogo = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setError(null);
+    try {
+      const { blob } = await resizeImage(file, { maxEdge: LOGO_MAX_EDGE, type: 'image/png' });
+      onChange(await toDataUrl(blob));
+    } catch {
+      setError('We could not read that image. Try a JPEG or PNG.');
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        {logoDataUrl ? (
+          <Image
+            src={logoDataUrl}
+            alt="Your logo"
+            width={56}
+            height={56}
+            unoptimized
+            className="size-14 rounded-brand border border-border bg-surface object-contain"
+          />
+        ) : null}
+        <label
+          htmlFor={id}
+          className={cn(
+            'inline-flex min-h-tap cursor-pointer items-center rounded-brand border border-border bg-surface px-4 text-base font-medium text-ink hover:bg-background',
+            'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary',
+          )}
+        >
+          {logoDataUrl ? 'Change logo' : 'Add your logo (optional)'}
+          <input id={id} type="file" accept="image/*" onChange={handleLogo} className="sr-only" />
+        </label>
+        {logoDataUrl ? (
+          <Button type="button" variant="ghost" onClick={() => onChange(null)}>
+            Remove
+          </Button>
+        ) : null}
+      </div>
+      {error ? (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Step 1: optional job name, business name, logo and review link. Business details are remembered on the phone. */
 export function JobDetailsStep({
   business,
   onBusinessChange,
@@ -43,28 +106,21 @@ export function JobDetailsStep({
   onContinue,
 }: JobDetailsStepProps) {
   const [title, setTitle] = useState('');
-  const [logoError, setLogoError] = useState<string | null>(null);
-  const logoId = useId();
-
-  const handleLogo = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setLogoError(null);
-    try {
-      const { blob } = await resizeImage(file, { maxEdge: LOGO_MAX_EDGE, type: 'image/png' });
-      onBusinessChange({ logoDataUrl: await toDataUrl(blob) });
-    } catch {
-      setLogoError('We could not read that image. Try a JPEG or PNG.');
-    }
-  };
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    const review = checkReviewUrl(business.reviewUrl);
+    if (review && !review.ok) {
+      setReviewError(review.message);
+      return;
+    }
+    setReviewError(null);
     onContinue({
       title: title.trim(),
       businessName: business.name.trim(),
       logoDataUrl: business.logoDataUrl,
+      reviewUrl: review ? review.url : null,
     });
   };
 
@@ -87,48 +143,24 @@ export function JobDetailsStep({
         maxLength={120}
         autoComplete="organization"
       />
-      <div className="flex items-center gap-3">
-        {business.logoDataUrl ? (
-          <Image
-            src={business.logoDataUrl}
-            alt="Your logo"
-            width={56}
-            height={56}
-            unoptimized
-            className="size-14 rounded-brand border border-border object-contain bg-surface"
-          />
-        ) : null}
-        <label
-          htmlFor={logoId}
-          className={cn(
-            'inline-flex min-h-tap cursor-pointer items-center rounded-brand border border-border bg-surface px-4 text-base font-medium text-ink hover:bg-background',
-            'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary',
-          )}
-        >
-          {business.logoDataUrl ? 'Change logo' : 'Add your logo (optional)'}
-          <input
-            id={logoId}
-            type="file"
-            accept="image/*"
-            onChange={handleLogo}
-            className="sr-only"
-          />
-        </label>
-        {business.logoDataUrl ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onBusinessChange({ logoDataUrl: null })}
-          >
-            Remove
-          </Button>
-        ) : null}
-      </div>
-      {logoError ? (
-        <p role="alert" className="text-sm text-danger">
-          {logoError}
-        </p>
-      ) : null}
+      <LogoPicker
+        logoDataUrl={business.logoDataUrl}
+        onChange={(logoDataUrl) => onBusinessChange({ logoDataUrl })}
+      />
+      <Input
+        label="Link for reviews (optional)"
+        hint="Your Google or Yelp review link. The customer gets a “Leave a review” button."
+        type="url"
+        inputMode="url"
+        autoComplete="url"
+        placeholder="https://g.page/r/…"
+        value={business.reviewUrl ?? ''}
+        onChange={(e) => {
+          setReviewError(null);
+          onBusinessChange({ reviewUrl: e.target.value || null });
+        }}
+        error={reviewError}
+      />
       {error ? (
         <p
           role="alert"

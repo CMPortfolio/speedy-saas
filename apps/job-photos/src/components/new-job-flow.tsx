@@ -3,7 +3,6 @@
 import { useState } from 'react';
 
 import { rememberClaim } from '@speedy/lib/device-claims';
-import { Button } from '@speedy/ui/button';
 
 import { CLAIM_NAMESPACE, type PhotoKind } from '@/config/constants';
 import type { CreatedJob } from '@/features/jobs/schemas';
@@ -14,6 +13,7 @@ import { ApiError, createJobRequest, updateJobRequest, uploadLogoRequest } from 
 import { JobDetailsStep, type JobDetailsValues } from './job-details-step';
 import { NoteStep } from './note-step';
 import { PhotoStep } from './photo-step';
+import { SendStep } from './send-step';
 
 type Step = 'details' | 'before' | 'after' | 'note' | 'done';
 
@@ -22,7 +22,7 @@ const STEPS: Record<Step, { number: number; title: string; hint?: string }> = {
   before: { number: 2, title: 'Before photos', hint: 'How it looked when you arrived. Up to six.' },
   after: { number: 3, title: 'After photos', hint: 'How it looks now. Up to six.' },
   note: { number: 4, title: 'Anything to tell the customer?' },
-  done: { number: 4, title: 'Saved' },
+  done: { number: 4, title: 'Send it to the customer' },
 };
 
 function messageFor(e: unknown, fallback: string): string {
@@ -66,6 +66,7 @@ export function NewJobFlow() {
       const created = await createJobRequest({
         title: values.title || null,
         business_name: values.businessName || null,
+        review_url: values.reviewUrl,
       });
       rememberClaim(CLAIM_NAMESPACE, created.id, created.claimToken);
       setJob(created);
@@ -115,16 +116,14 @@ export function NewJobFlow() {
       {step === 'before' && photoStep('before')}
       {step === 'after' && photoStep('after')}
       {step === 'note' && <NoteStep busy={busy} error={error} onContinue={saveNote} />}
-      {step === 'done' && (
-        <div className="space-y-4">
-          <p className="text-muted" data-testid="done-summary">
-            {saved('before')} before and {saved('after')} after photos are saved for this job.
-            Sending the link to your customer comes next.
-          </p>
-          <Button type="button" variant="secondary" size="lg" fullWidth onClick={startAnother}>
-            Start another job
-          </Button>
-        </div>
+      {step === 'done' && job && (
+        <SendStep
+          shareUrl={job.shareUrl}
+          businessName={business.name}
+          before={saved('before')}
+          after={saved('after')}
+          onAnother={startAnother}
+        />
       )}
     </section>
   );

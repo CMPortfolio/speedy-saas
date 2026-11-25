@@ -22,6 +22,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<NextR
       title: job.title,
       note: job.note,
       business_name: job.business_name,
+      review_url: job.review_url,
     });
   });
 }

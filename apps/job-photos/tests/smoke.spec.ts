@@ -68,7 +68,12 @@ test('one-moment flow: details, before, after, note (API mocked)', async ({ page
     route.fulfill({
       status: 201,
       contentType: 'application/json',
-      body: JSON.stringify({ id: 'job-1', shareSlug: 'abcdefghijklmnopqrstuv', claimToken: 'tok' }),
+      body: JSON.stringify({
+        id: 'job-1',
+        shareSlug: 'abcdefghijklmnopqrstuv',
+        shareUrl: 'http://127.0.0.1:3001/j/abcdefghijklmnopqrstuv',
+        claimToken: 'tok',
+      }),
     }),
   );
   await page.route('**/api/jobs/job-1/photos', async (route) => {
@@ -94,8 +99,25 @@ test('one-moment flow: details, before, after, note (API mocked)', async ({ page
     }),
   );
 
+  // Headless Chromium has no share sheet, so the Copy link fallback is what we can test.
+  await page.addInitScript(() => {
+    (window as unknown as { copied: string[] }).copied = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (t: string) => {
+          (window as unknown as { copied: string[] }).copied.push(t);
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+
   await page.goto('/new');
   await page.getByLabel('Job name (optional)').fill('Smith kitchen drain');
+  await page.getByLabel('Link for reviews (optional)').fill('http://not-secure.example');
+  await page.getByTestId('details-next').click();
+  await expect(page.getByText('Paste the full link, starting with https://')).toBeVisible();
+  await page.getByLabel('Link for reviews (optional)').fill('https://g.page/r/abc/review');
   await page.getByTestId('details-next').click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Before photos');
 
@@ -123,10 +145,28 @@ test('one-moment flow: details, before, after, note (API mocked)', async ({ page
     .getByLabel('A note for the customer (optional)')
     .fill('Cleared the line and tested it.');
   await page.getByTestId('note-next').click();
-  await expect(page.getByTestId('done-summary')).toContainText('1 before and 1 after');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Send it to the customer');
+  await expect(page.getByTestId('share-url')).toHaveValue(
+    'http://127.0.0.1:3001/j/abcdefghijklmnopqrstuv',
+  );
+  await page.getByTestId('copy-link').click();
+  await expect(page.getByTestId('copy-link')).toHaveText('Copied');
+  expect(await page.evaluate(() => (window as unknown as { copied: string[] }).copied)).toEqual([
+    'http://127.0.0.1:3001/j/abcdefghijklmnopqrstuv',
+  ]);
   expect(uploads.map((u) => u.kind)).toEqual(['before', 'after']);
   expect(uploads.every((u) => u.size > 0)).toBe(true);
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth).toBeLessThanOrEqual(390);
+});
+
+test('share page: a malformed slug is a 404 and the preview image is a png', async ({
+  request,
+}) => {
+  const page = await request.get('/j/not-a-real-slug');
+  expect(page.status()).toBe(404);
+  const image = await request.get('/j/not-a-real-slug/opengraph-image');
+  expect(image.ok()).toBe(true);
+  expect(image.headers()['content-type']).toContain('image/png');
 });

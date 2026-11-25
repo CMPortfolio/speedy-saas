@@ -32,7 +32,7 @@ export function anonymousExpiry(now = new Date()): string {
 export async function createJob(
   input: CreateJobInput,
   ownerId: string | null,
-): Promise<CreatedJob> {
+): Promise<Omit<CreatedJob, 'shareUrl'>> {
   const claimToken = randomToken();
   const shareSlug = randomSlug();
   const { data, error } = await jobsDb()
@@ -43,6 +43,7 @@ export async function createJob(
       title: input.title ?? null,
       note: input.note ?? null,
       business_name: input.business_name ?? null,
+      review_url: input.review_url ?? null,
       claim_token_hash: await hashClaimToken(claimToken),
       expires_at: ownerId ? null : anonymousExpiry(),
     })
@@ -58,11 +59,23 @@ export async function getJob(id: string): Promise<JobRow | null> {
   return data;
 }
 
+/** The share page's lookup. Callers decide what an expired or missing job means. */
+export async function getJobBySlug(shareSlug: string): Promise<JobRow | null> {
+  const { data, error } = await jobsDb()
+    .from('jobs')
+    .select('*')
+    .eq('share_slug', shareSlug)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function updateJob(id: string, patch: UpdateJobInput): Promise<JobRow> {
   const fields: Database['job_photos']['Tables']['jobs']['Update'] = {};
   if (patch.title !== undefined) fields.title = patch.title;
   if (patch.note !== undefined) fields.note = patch.note;
   if (patch.business_name !== undefined) fields.business_name = patch.business_name;
+  if (patch.review_url !== undefined) fields.review_url = patch.review_url;
   const { data, error } = await jobsDb()
     .from('jobs')
     .update(fields)

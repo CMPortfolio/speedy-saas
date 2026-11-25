@@ -26,6 +26,15 @@ tests/          Playwright one-moment test(s); tests/unit for Vitest
 tool.config.ts  slug, name, scope line, schema, dev port, URL
 ```
 
+## Share page
+
+`/j/<slug>` is what the customer opens: business name and logo, before and after side by side
+(stacked under 640px), the note, the date and a "Leave a review" button when the owner added a
+review link. It is read by `share_slug` with the service client only, photos through 10-minute
+signed URLs. Unknown slug: 404. Expired anonymous job: a plain "This link has expired" page.
+`/j/<slug>/opengraph-image` is the link preview: first before and after photo side by side, or
+the brand card when the job has no photos.
+
 ## Storage
 
 Photos go to the private Supabase Storage bucket `job-photos` through the adapter in

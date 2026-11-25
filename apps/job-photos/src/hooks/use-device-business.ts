@@ -9,11 +9,16 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 export interface DeviceBusiness {
   name: string;
   logoDataUrl: string | null;
+  reviewUrl: string | null;
 }
 
 export const DEVICE_BUSINESS_KEY = 'job-photos.business';
 
-const EMPTY: DeviceBusiness = { name: '', logoDataUrl: null };
+const EMPTY: DeviceBusiness = { name: '', logoDataUrl: null, reviewUrl: null };
+
+function isEmpty(value: DeviceBusiness): boolean {
+  return !value.name && !value.logoDataUrl && !value.reviewUrl;
+}
 
 export function parseDeviceBusiness(raw: string | null | undefined): DeviceBusiness {
   if (!raw) return EMPTY;
@@ -22,6 +27,7 @@ export function parseDeviceBusiness(raw: string | null | undefined): DeviceBusin
     return {
       name: typeof parsed.name === 'string' ? parsed.name : '',
       logoDataUrl: typeof parsed.logoDataUrl === 'string' ? parsed.logoDataUrl : null,
+      reviewUrl: typeof parsed.reviewUrl === 'string' ? parsed.reviewUrl : null,
     };
   } catch {
     return EMPTY;
@@ -41,7 +47,7 @@ export function writeDeviceBusiness(
   value: DeviceBusiness,
 ): void {
   try {
-    if (!value.name && !value.logoDataUrl) storage?.removeItem(DEVICE_BUSINESS_KEY);
+    if (isEmpty(value)) storage?.removeItem(DEVICE_BUSINESS_KEY);
     else storage?.setItem(DEVICE_BUSINESS_KEY, JSON.stringify(value));
   } catch {
     // Private mode or a full store: the owner just types it again next time.
@@ -94,7 +100,7 @@ export function useDeviceBusiness(): [
 
   const update = useCallback((patch: Partial<DeviceBusiness>) => {
     const next = { ...parseDeviceBusiness(getSnapshot()), ...patch };
-    fallbackRaw = !next.name && !next.logoDataUrl ? null : JSON.stringify(next);
+    fallbackRaw = isEmpty(next) ? null : JSON.stringify(next);
     writeDeviceBusiness(localStore(), next);
     for (const listener of listeners) listener();
   }, []);

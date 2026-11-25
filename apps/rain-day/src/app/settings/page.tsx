@@ -5,7 +5,13 @@ import { requireUser } from '@speedy/auth/user';
 import { getProfile } from '@speedy/db/core';
 
 import { CellForm } from '@/features/settings/cell-form';
-import { getOwnerSettings } from '@/features/settings/owner-cell';
+import { formatUsPhone } from '@speedy/lib/phone';
+
+import {
+  getOwnerSettings,
+  NO_SENDER_MESSAGE,
+  senderNumberOf,
+} from '@/features/settings/owner-cell';
 import { createVerifyStore, hasPendingCode } from '@/features/settings/verify-store';
 import { SettingsForm } from '@/features/settings/settings-form';
 
@@ -29,6 +35,14 @@ export default async function SettingsPage() {
         </p>
       </header>
       <SettingsForm businessName={profile?.business_name ?? ''} phone={profile?.phone ?? ''} />
+      <section className="flex flex-col gap-2 border-t border-border pt-6">
+        <h2 className="text-lg font-semibold">Your texting number</h2>
+        <p className="text-sm text-ink">
+          {senderNumberOf(settings)
+            ? `Customers get your texts from ${formatUsPhone(senderNumberOf(settings) ?? '')}, and their replies come back to it.`
+            : NO_SENDER_MESSAGE}
+        </p>
+      </section>
       <section className="flex flex-col gap-3 border-t border-border pt-6">
         <h2 className="text-lg font-semibold">Customer replies</h2>
         <p className="text-sm text-muted">

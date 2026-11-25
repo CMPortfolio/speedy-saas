@@ -6,7 +6,12 @@ import { getProfile } from '@speedy/db/core';
 
 import { ButtonLink } from '@/components/button-link';
 import { skipReason } from '@/features/rain-day/plan';
-import { listCustomersForDay, listOptedOutPhones } from '@/features/rain-day/queries';
+import { getOwnerSettings, senderNumberOf } from '@/features/settings/owner-cell';
+import {
+  listContactedCustomerIds,
+  listCustomersForDay,
+  listOptedOutPhones,
+} from '@/features/rain-day/queries';
 import { RainDayForm } from '@/features/rain-day/rain-day-form';
 import { defaultTemplate } from '@/features/rain-day/template';
 import { addDays, isIsoDate, todayInNewYork, weekdayOf } from '@/lib/dates';
@@ -23,10 +28,12 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
   const to = params.to && isIsoDate(params.to) ? params.to : addDays(from, 1);
 
   const supabase = await createServerSupabase();
-  const [customers, profile, optedOut] = await Promise.all([
+  const [customers, profile, optedOut, contacted, settings] = await Promise.all([
     listCustomersForDay(supabase, weekdayOf(from)),
     getProfile(supabase, user.id),
     listOptedOutPhones(supabase),
+    listContactedCustomerIds(supabase),
+    getOwnerSettings(supabase),
   ]);
 
   return (
@@ -56,8 +63,11 @@ export default async function RainDayPage({ searchParams }: { searchParams: Sear
           name: c.name,
           phone: c.phone,
           skip: skipReason(c, optedOut),
+          firstContact: !contacted.has(c.id),
         }))}
         initialTemplate={defaultTemplate(profile?.business_name ?? '')}
+        businessName={profile?.business_name?.trim() ?? ''}
+        senderReady={senderNumberOf(settings) !== null}
       />
     </section>
   );

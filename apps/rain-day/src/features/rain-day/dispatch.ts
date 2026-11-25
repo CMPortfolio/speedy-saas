@@ -34,7 +34,7 @@ export const MAX_CONCURRENT_SENDS = 5;
 
 const log = logger.child({ feature: 'rain-day-dispatch' });
 
-function codeOf(error: unknown): string | undefined {
+export function codeOf(error: unknown): string | undefined {
   return typeof error === 'object' && error !== null
     ? (error as { code?: string }).code
     : undefined;

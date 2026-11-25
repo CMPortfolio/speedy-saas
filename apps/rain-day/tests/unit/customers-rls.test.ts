@@ -39,6 +39,7 @@ afterAll(async () => {
 
 describe.skipIf(!process.env.CI && !process.env.DATABASE_URL && !process.env.DB_TESTS)(
   'rain_day.customers RLS',
+  { timeout: 60_000 },
   () => {
     it('an owner reads only their own customers', async () => {
       if (!db) return;

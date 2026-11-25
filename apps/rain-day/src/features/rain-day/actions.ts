@@ -6,9 +6,15 @@ import { getProfile } from '@speedy/db/core';
 import { logger } from '@speedy/lib/logger';
 import { revalidatePath } from 'next/cache';
 
-import { getSms, getSmsFrom } from '@/config/sms';
+import { getSms } from '@/config/sms';
+import {
+  getOwnerSettings,
+  NO_SENDER_MESSAGE,
+  senderNumberOf,
+} from '@/features/settings/owner-cell';
 import { todayInNewYork, weekdayOf } from '@/lib/dates';
 
+import { codeOf } from './dispatch';
 import { listCustomersForDay, listOptedOutPhones } from './queries';
 import { sendInputSchema, type SendInput } from './schema';
 import { runSend, SEND_FAILED, type SendContext, type SendResult } from './send-core';
@@ -26,6 +32,8 @@ async function prepare(userId: string, request: SendInput): Promise<Prepared> {
   if (!businessName) {
     return { problem: 'Add your business name in Settings first. Customers see it in the text.' };
   }
+  const from = senderNumberOf(await getOwnerSettings(db));
+  if (!from) return { problem: NO_SENDER_MESSAGE };
   const [customers, optedOutPhones] = await Promise.all([
     listCustomersForDay(db, weekdayOf(request.from)),
     listOptedOutPhones(db),
@@ -38,7 +46,7 @@ async function prepare(userId: string, request: SendInput): Promise<Prepared> {
       optedOutPhones,
       businessName,
       provider: getSms(),
-      from: getSmsFrom(),
+      from,
       today,
     },
   };
@@ -69,9 +77,7 @@ export async function sendRainDay(input: unknown): Promise<SendResult> {
     revalidatePath('/rain-day');
     return result;
   } catch (error) {
-    logger.error('rain-day: send failed unexpectedly', {
-      code: (error as { code?: string } | null)?.code,
-    });
+    logger.error('rain-day: send failed unexpectedly', { code: codeOf(error) });
     return { ok: false, message: SEND_FAILED };
   }
 }

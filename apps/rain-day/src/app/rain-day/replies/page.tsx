@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { createServerSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
@@ -44,9 +45,9 @@ export default async function RepliesPage() {
       {!settings?.owner_cell && (
         <p className="rounded-brand border border-border bg-surface px-4 py-3 text-sm text-ink">
           Replies are not being texted to you yet.{' '}
-          <a href="/settings" className="font-medium text-primary underline">
+          <Link href="/settings" className="font-medium text-primary underline">
             Add your cell in Settings
-          </a>
+          </Link>
           .
         </p>
       )}

@@ -35,3 +35,12 @@ export async function removeVerifiedCell(service: Db, ownerId: string): Promise<
     .eq('owner_id', ownerId);
   if (error) throw error;
 }
+
+/** Plain copy when an owner has no texting number yet. */
+export const NO_SENDER_MESSAGE =
+  "Your texting number isn't set up yet. We'll let you know when it's ready.";
+
+/** The number this owner texts from and gets replies on, or null until an admin sets it. */
+export function senderNumberOf(settings: OwnerSettings | null): E164 | null {
+  return (settings?.sender_number as E164 | null | undefined) ?? null;
+}

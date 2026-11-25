@@ -1,5 +1,7 @@
 import { formatUsPhone } from '@speedy/lib/phone';
 
+import { withOptOutFooter } from '@speedy/sms/keywords';
+
 import type { SkipReason } from './plan';
 import { renderMessage } from './template';
 
@@ -9,6 +11,8 @@ export interface FormCustomer {
   phone: string;
   /** Set when this customer will be skipped and cannot be ticked. */
   skip: SkipReason | null;
+  /** True when they have never had a text from this owner: the opt-out line is added. */
+  firstContact: boolean;
 }
 
 export interface CustomerRowProps {
@@ -16,6 +20,7 @@ export interface CustomerRowProps {
   ticked: boolean;
   newDay: string;
   template: string;
+  businessName: string;
   onToggle: (id: string) => void;
 }
 
@@ -26,10 +31,18 @@ const SKIP_NOTES: Record<SkipReason, string> = {
 
 /**
  * One customer: a tick box, who they are, and the text they would get. The whole row is the
- * label, so tapping anywhere on it toggles the box. First-time customers also get the opt-out
- * line added when it is sent; the preview does not show it.
+ * label, so tapping anywhere on it toggles the box. The preview is the text as it will be sent,
+ * including the opt-out line a customer gets on their first text.
  */
-export function CustomerRow({ customer: c, ticked, newDay, template, onToggle }: CustomerRowProps) {
+export function CustomerRow({
+  customer: c,
+  ticked,
+  newDay,
+  template,
+  businessName,
+  onToggle,
+}: CustomerRowProps) {
+  const text = renderMessage(template, { name: c.name, newDay });
   return (
     <li>
       <label
@@ -53,7 +66,7 @@ export function CustomerRow({ customer: c, ticked, newDay, template, onToggle }:
             <span className="text-sm text-muted">{SKIP_NOTES[c.skip]}</span>
           ) : (
             <span className={ticked ? 'text-sm text-muted' : 'text-sm text-muted line-through'}>
-              {renderMessage(template, { name: c.name, newDay })}
+              {c.firstContact ? withOptOutFooter(text, businessName) : text}
             </span>
           )}
         </span>

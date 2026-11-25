@@ -1,6 +1,9 @@
 import type { Db } from '@speedy/db/core';
 import type { VerifyStore } from '@speedy/sms/verify-phone';
 
+/** Codes per owner per day, on top of the package's 3 an hour. */
+export const DAILY_CODE_LIMIT = 6;
+
 /**
  * Phone-verification state in the rain_day schema, on the service-role client. The limits that
  * must not race (code texts per hour, wrong tries) run inside SQL functions.
@@ -13,6 +16,7 @@ export function createVerifyStore(db: Db): VerifyStore {
         p_owner_id: subject,
         p_limit: limit,
         p_window_seconds: Math.round(windowMs / 1000),
+        p_daily_limit: DAILY_CODE_LIMIT,
       });
       if (error) throw error;
       return data;

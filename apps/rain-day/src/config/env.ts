@@ -11,7 +11,7 @@ export const env = createEnv({
   server: {
     ...authEnvSchema.server,
     ...smsEnvSchema.server,
-    /** The business texting number, E.164. Twilio ignores it when a Messaging Service is set. */
+    /** Dev default for the fake provider only. Each owner texts from their own sender number. */
     SMS_FROM_NUMBER: z
       .string()
       .regex(/^\+1[2-9][0-9]{9}$/, 'a US number like +12395550100')

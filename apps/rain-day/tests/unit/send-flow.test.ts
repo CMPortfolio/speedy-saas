@@ -70,6 +70,7 @@ async function context(owner: Owner, provider = fakeProvider(), db: Client = own
   const ctx: SendContext = {
     db,
     service,
+    ownerId: owner.id,
     customers: data!,
     optedOutPhones: await listOptedOutPhones(owner.client),
     businessName: 'Green Gulf Lawn',

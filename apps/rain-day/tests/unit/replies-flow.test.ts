@@ -78,6 +78,7 @@ async function sendRainDay(o: Owner) {
     {
       db: o.client,
       service,
+      ownerId: o.id,
       customers: customers!,
       optedOutPhones: await listOptedOutPhones(o.client),
       businessName: 'Green Gulf Lawn',
@@ -258,14 +259,52 @@ describe.skipIf(!enabled)('STOP, START, HELP and plain replies', TIMEOUT, () => 
     expect((await listOptedOutPhones(o.client)).has(phone)).toBe(false);
   });
 
-  it('a STOP to one owner’s number still blocks dispatch for every owner (the number is blocked, not the tenant)', async () => {
+  it('a STOP to one owner’s number does not skip another owner’s send, and the other owner never sees it', async () => {
     const phone = freshNumber('73');
     const first = await freshOwner([['Pat Ruiz', phone]]);
-    const second = await freshOwner([]);
+    const second = await freshOwner([['Pat R', phone]]);
+    await receive(first.number, phone, 'STOP');
+
+    expect((await listOptedOutPhones(first.client)).has(phone)).toBe(true);
+    expect((await listOptedOutPhones(second.client)).has(phone)).toBe(false);
+    const theirs = await second.client.schema('rain_day').from('opt_outs').select('id');
+    expect(theirs.data).toEqual([]);
+
+    const blocked = await sendRainDay(first);
+    expect(await statusFor(first, blocked, 'Pat Ruiz')).toEqual([{ status: 'skipped' }]);
+    const before = sentTo(phone);
+    const allowed = await sendRainDay(second);
+    expect(sentTo(phone)).toBe(before + 1);
+    expect(await statusFor(second, allowed, 'Pat R')).toEqual([{ status: 'sent' }]);
+  });
+
+  it('START to one owner’s number clears only that owner’s STOP', async () => {
+    const phone = freshNumber('73');
+    const first = await freshOwner([['Pat Ruiz', phone]]);
+    const second = await freshOwner([['Pat R', phone]]);
+    await receive(first.number, phone, 'STOP');
     await receive(second.number, phone, 'STOP');
-    const rescheduleId = await sendRainDay(first);
-    expect(sentTo(phone)).toBe(0);
-    expect(await statusFor(first, rescheduleId, 'Pat Ruiz')).toEqual([{ status: 'skipped' }]);
+    // START to B clears B's entry only: A stays blocked, B is unaffected by A.
+    await receive(second.number, phone, 'START');
+    expect((await listOptedOutPhones(first.client)).has(phone)).toBe(true);
+    expect((await listOptedOutPhones(second.client)).has(phone)).toBe(false);
+    const blocked = await sendRainDay(first);
+    expect(await statusFor(first, blocked, 'Pat Ruiz')).toEqual([{ status: 'skipped' }]);
+    const before = sentTo(phone);
+    await sendRainDay(second);
+    expect(sentTo(phone)).toBe(before + 1);
+  });
+
+  it('HELP is answered separately for each owner’s number', async () => {
+    const phone = freshNumber('72');
+    const first = await freshOwner([['Maria', phone]]);
+    const second = await freshOwner([['Maria L', phone]]);
+    const before = provider.sent.length;
+    await receive(first.number, phone, 'HELP');
+    await receive(second.number, phone, 'HELP');
+    await receive(first.number, phone, 'HELP');
+    const answers = provider.sent.slice(before);
+    expect(answers.map((a) => a.from).sort()).toEqual([first.number, second.number].sort());
   });
 
   it('a plain "Yes" from someone who is not opted out is forwarded, not swallowed', async () => {

@@ -4,7 +4,7 @@ import { classifyKeyword, helpReply } from '@speedy/sms/keywords';
 import type { InboundMessage, SmsProvider } from '@speedy/sms/provider';
 import { applyOptOutKeyword, type OptOutStore } from '@speedy/sms/send';
 
-import { codeOf } from '@/features/rain-day/dispatch';
+import { codeOf } from '@/lib/error-code';
 
 import { FORWARD_CAP_PER_HOUR, forwardText } from './forward';
 

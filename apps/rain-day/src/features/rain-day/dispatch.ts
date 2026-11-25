@@ -3,6 +3,8 @@ import { isUsDomesticPhone, type E164 } from '@speedy/lib/phone';
 import type { SmsProvider } from '@speedy/sms/provider';
 import { sendFirstOrFollowup } from '@speedy/sms/send';
 
+import { codeOf } from '@/lib/error-code';
+
 export interface DispatchRow {
   /** reschedule_messages.id */
   id: string;
@@ -33,12 +35,6 @@ export interface DispatchOutcome {
 export const MAX_CONCURRENT_SENDS = 5;
 
 const log = logger.child({ feature: 'rain-day-dispatch' });
-
-export function codeOf(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null
-    ? (error as { code?: string }).code
-    : undefined;
-}
 
 /**
  * Text each row on its own, through the provider, one recipient per call. Never retries a send:

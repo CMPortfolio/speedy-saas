@@ -179,3 +179,11 @@ test('my jobs needs sign-in and comes back to /jobs afterwards', async ({ page }
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fjobs$/);
   await expect(page.getByLabel('Email')).toBeVisible();
 });
+
+test('cron cleanup route refuses anyone without the secret', async ({ request }) => {
+  expect((await request.post('/api/cron/cleanup')).status()).toBe(401);
+  const wrong = await request.post('/api/cron/cleanup', {
+    headers: { authorization: 'Bearer not-the-secret' },
+  });
+  expect(wrong.status()).toBe(401);
+});

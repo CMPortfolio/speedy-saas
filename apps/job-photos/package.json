@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
+    "cleanup": "tsx scripts/cleanup.ts",
     "clean": "rm -rf .next playwright-report test-results"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "pg": "catalog:",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

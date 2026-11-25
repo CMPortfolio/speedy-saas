@@ -70,7 +70,15 @@ the hosted project's API settings in production.
 
 `railway.json` in this folder carries the build and start commands; the engineer creates the
 service, sets the root directory and config path (`apps/job-photos/railway.json`), the domain and
-the env vars.
+the env vars. The full list of variables and the Railway and Cloudflare steps are in `LAUNCH.md`.
+
+## Cleanup of expired jobs
+
+Anonymous jobs expire after 30 days. `pnpm --filter @speedy/job-photos cleanup` deletes the
+expired ones and their photos from storage (a second Railway service on
+`apps/job-photos/railway.cleanup.json`, cron `0 8 * * *`). `POST /api/cron/cleanup` does the same
+and needs `Authorization: Bearer $CRON_SECRET`; without the secret it answers 401. Signed-in jobs
+are never deleted.
 
 ## Definition of Done (from CLAUDE.md)
 

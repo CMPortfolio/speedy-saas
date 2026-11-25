@@ -249,6 +249,55 @@ describe.skipIf(!enabled)(
         c.query(CREATE, [owner.id, key, '2026-12-01', '2026-12-02', 'x', json, max]),
       );
 
+    it('add_practice_rows saves a practice STOP or START in the same transaction, and never touches real opt-outs', async () => {
+      if (!db) return;
+      const owner = await db.createUser();
+      const customer = await customerFor(owner, 'Stop');
+      const day = (await make(owner, crypto.randomUUID(), rows(customer, 1, 'skipped'))).rows[0]
+        .reschedule_id as string;
+      await db.pool.query(
+        'insert into rain_day.opt_outs (owner_id, phone) select owner_id, phone from rain_day.customers where id = $1',
+        [customer],
+      );
+      const add = (optOut: string | null, body = 'STOP') =>
+        db!.asService((c) =>
+          c.query(`select rain_day.add_practice_rows($1, $2, $3, $4::jsonb, false, 100, $5)`, [
+            owner.id,
+            day,
+            customer,
+            JSON.stringify([{ direction: 'in', kind: 'text', body, status: 'received' }]),
+            optOut,
+          ]),
+        );
+      const stopped = () =>
+        db!.pool.query(
+          'select 1 from rain_day.practice_opt_outs where owner_id = $1 and customer_id = $2',
+          [owner.id, customer],
+        );
+      await add('stop');
+      expect((await stopped()).rowCount).toBe(1);
+      await add('stop'); // saying STOP twice is fine
+      expect((await stopped()).rowCount).toBe(1);
+      await add('start', 'START');
+      expect((await stopped()).rowCount).toBe(0);
+      // The real STOP list was never written or cleared.
+      const real = await db.pool.query('select 1 from rain_day.opt_outs where owner_id = $1', [
+        owner.id,
+      ]);
+      expect(real.rowCount).toBe(1);
+      // A bad value changes nothing, and a failure leaves no half-saved bubble behind.
+      const before = await db.pool.query(
+        'select count(*)::int as n from rain_day.practice_messages where owner_id = $1',
+        [owner.id],
+      );
+      await expect(add('forever')).rejects.toMatchObject({ code: '22023' });
+      const after = await db.pool.query(
+        'select count(*)::int as n from rain_day.practice_messages where owner_id = $1',
+        [owner.id],
+      );
+      expect(after.rows[0].n).toBe(before.rows[0].n);
+    });
+
     it('add_practice_out files one bubble, within the cap, and checks the body', async () => {
       if (!db) return;
       const owner = await db.createUser();

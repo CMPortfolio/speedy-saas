@@ -1074,6 +1074,7 @@ export type Database = {
           p_customer_id: string;
           p_mark_replied: boolean;
           p_max_messages: number;
+          p_opt_out?: string;
           p_owner_id: string;
           p_reschedule_id: string;
           p_rows: Json;

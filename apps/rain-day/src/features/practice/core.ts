@@ -1,5 +1,4 @@
 import type { Db } from '@speedy/db/core';
-import type { Json } from '@speedy/db/types';
 import { logger } from '@speedy/lib/logger';
 import type { E164 } from '@speedy/lib/phone';
 import { practiceProvider, type PracticeSink } from '@speedy/sms/practice';
@@ -34,6 +33,8 @@ const FAILED = 'We could not do that just now. Try again in a minute.';
 /** Refuse unless the owner is in practice mode, then spend one of their practice actions. */
 async function begin(ctx: PracticeContext): Promise<PracticeResult> {
   if (!isPracticeOwner(ctx.settings)) return { ok: false, message: PRACTICE_REFUSED };
+  // Practice from more than a week ago goes with the owner's next action (and when a page loads).
+  await expirePractice(ctx);
   const { data, error } = await ctx.service.schema('rain_day').rpc('reserve_practice_action', {
     p_owner_id: ctx.ownerId,
     p_limit: PRACTICE_ACTIONS_PER_HOUR,
@@ -144,7 +145,7 @@ export async function sendPractice(
       customer_id: m.customer_id,
       status: m.status,
       error_code: m.error_code,
-    })) as unknown as Json,
+    })),
     p_max_messages: PRACTICE_MAX_MESSAGES,
   });
   const row = shell.data?.[0];
@@ -252,26 +253,14 @@ export async function replyPractice(
     p_owner_id: ctx.ownerId,
     p_reschedule_id: request.rescheduleId,
     p_customer_id: customerId,
-    p_rows: plan.rows as unknown as Json,
+    p_rows: plan.rows,
     p_mark_replied: plan.markReplied,
     p_max_messages: PRACTICE_MAX_MESSAGES,
+    // A practice STOP or START is saved in the same transaction as the bubble that says so.
+    ...(plan.optOut ? { p_opt_out: plan.optOut } : {}),
   });
   if (added.error) return { ok: false, message: dbMessage(added.error) };
 
-  if (plan.optOut === 'stop') {
-    await db
-      .from('practice_opt_outs')
-      .upsert(
-        { owner_id: ctx.ownerId, customer_id: customerId },
-        { onConflict: 'owner_id,customer_id' },
-      );
-  } else if (plan.optOut === 'start') {
-    await db
-      .from('practice_opt_outs')
-      .delete()
-      .eq('owner_id', ctx.ownerId)
-      .eq('customer_id', customerId);
-  }
   return { ok: true, forwarded: plan.rows.some((r) => r.direction === 'forward') };
 }
 

@@ -68,6 +68,16 @@ export function memoryPracticeStore(options: { actionLimit?: number; maxMessages
       });
       return { id };
     },
+    async callers() {
+      return calls.map((c) => c.callerNumber).reverse();
+    },
+    async prune(before) {
+      const gone = new Set(
+        calls.filter((c) => Date.parse(c.receivedAt) < before.getTime()).map((c) => c.id),
+      );
+      calls.splice(0, calls.length, ...calls.filter((c) => !gone.has(c.id)));
+      messages.splice(0, messages.length, ...messages.filter((m) => !gone.has(m.callId)));
+    },
     async clear() {
       calls.length = 0;
       messages.length = 0;

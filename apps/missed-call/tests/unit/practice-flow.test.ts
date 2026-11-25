@@ -8,6 +8,8 @@ import {
   markPracticeCall,
   sendPracticeReply,
   simulateMissedCall,
+  simulateNewCall,
+  simulateRepeatCall,
   type PracticeLine,
 } from '../../src/features/practice/practice-flow';
 import { isPracticeCaller, nextPracticeCaller } from '../../src/features/practice/numbers';
@@ -215,6 +217,34 @@ describe('markPracticeCall and clearPractice', () => {
     expect((await clearPractice(deps())).ok).toBe(true);
     expect(mem.calls).toHaveLength(0);
     expect(mem.messages).toHaveLength(0);
+  });
+});
+
+describe('new and repeat calls are chosen on the server', () => {
+  it('a new call takes the next unused practice number', async () => {
+    await simulateNewCall(deps());
+    await simulateNewCall(deps());
+    expect(mem.calls.map((c) => c.callerNumber)).toEqual(['+12395550101', '+12395550102']);
+  });
+
+  it('a repeat call is the same caller as one of the owner own calls, and an unknown id is refused', async () => {
+    await simulateNewCall(deps());
+    await simulateRepeatCall(deps(), mem.calls[0]!.id);
+    expect(mem.calls.map((c) => c.callerNumber)).toEqual(['+12395550101', '+12395550101']);
+    const bad = await simulateRepeatCall(deps(), 'someone-elses');
+    expect(!bad.ok && bad.code).toBe('not_found');
+    expect(mem.calls).toHaveLength(2);
+  });
+});
+
+describe('Your cell is display-only', () => {
+  it('the lead is saved for the screen and nothing is sent anywhere near the owner cell', async () => {
+    await simulateMissedCall(deps(), CALLER);
+    await sendPracticeReply(deps(), mem.calls[0]!.id, 'need a quote');
+    const forward = sent('forward');
+    expect(forward).toHaveLength(1);
+    expect(forward[0]?.body).toBe('New lead from (239) 555-0123: need a quote');
+    expect(sent('out').every((m) => !m.body.includes('New lead'))).toBe(true);
   });
 });
 

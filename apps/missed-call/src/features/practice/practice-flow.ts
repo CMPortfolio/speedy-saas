@@ -5,7 +5,7 @@ import { sendFirstOrFollowup, type OptOutStore } from '@speedy/sms/send';
 
 import { pickTemplate } from '../missed-calls/pick-template';
 import { leadText } from '../missed-calls/handle-reply';
-import { PRACTICE_LINE_NUMBER, isPracticeCaller } from './numbers';
+import { PRACTICE_LINE_NUMBER, isPracticeCaller, nextPracticeCaller } from './numbers';
 import type { PracticeCall, PracticeStatus, PracticeStore } from './practice-store';
 
 /**
@@ -21,7 +21,7 @@ export interface PracticeLine {
   afterHoursTemplate: string | null;
   quietHours: unknown;
   timezone: string;
-  /** Shown as "Your cell"; nothing is ever sent to it. */
+  /** Shown as "Your cell" on the screen. Nothing is ever sent to it. */
   ownerCell: string;
 }
 
@@ -66,12 +66,11 @@ async function reserve(store: PracticeStore): Promise<PracticeResult | null> {
   return null;
 }
 
-/** Texts shown on the caller's phone go "out"; texts to the owner's cell are the forwarded leads. */
-function sinkFor(deps: PracticeDeps, callId: string): PracticeSink {
+/** Texts shown on the caller's phone. The owner's cell is display-only: nothing is ever "sent" to it. */
+function callerPhone(deps: PracticeDeps, callId: string): PracticeSink {
   return {
     async add(message) {
-      const direction = message.to === deps.line.ownerCell ? 'forward' : 'out';
-      return deps.store.addMessage(callId, direction, message.body);
+      return deps.store.addMessage(callId, 'out', message.body);
     },
   };
 }
@@ -99,6 +98,22 @@ function holdReason(prior: PracticeCall[], now: Date): string | null {
     : null;
 }
 
+/** A pretend missed call from the next unused practice number, chosen here and not by the request. */
+export async function simulateNewCall(deps: PracticeDeps): Promise<PracticeResult> {
+  return simulateMissedCall(deps, nextPracticeCaller(await deps.store.callers()));
+}
+
+/** The same practice caller again, found by id among this owner's own calls (to try the 24 hour rule). */
+export async function simulateRepeatCall(
+  deps: PracticeDeps,
+  callId: string,
+): Promise<PracticeResult> {
+  const call = await deps.store.getCall(callId);
+  if (!call)
+    return fail('not_found', 'That practice call is gone. Tap Clear practice and try again.');
+  return simulateMissedCall(deps, call.callerNumber);
+}
+
 /** A pretend missed call from a practice caller: logged, and texted back unless the real rules say no. */
 export async function simulateMissedCall(
   deps: PracticeDeps,
@@ -116,13 +131,17 @@ export async function simulateMissedCall(
   const why = holdReason(prior, now);
   if (why) return done(`Missed call from ${label} logged. ${why}`);
 
-  const sent = await sendFirstOrFollowup(practiceProvider(sinkFor(deps, callId)), nothingBlocked, {
-    to: caller,
-    from: PRACTICE_LINE_NUMBER,
-    body: pickTemplate(deps.line, now),
-    businessName: deps.line.businessName,
-    isFirstContact: !prior.some((c) => c.textedAt),
-  });
+  const sent = await sendFirstOrFollowup(
+    practiceProvider(callerPhone(deps, callId)),
+    nothingBlocked,
+    {
+      to: caller,
+      from: PRACTICE_LINE_NUMBER,
+      body: pickTemplate(deps.line, now),
+      businessName: deps.line.businessName,
+      isFirstContact: !prior.some((c) => c.textedAt),
+    },
+  );
   if (!sent.ok) return fail('bad_input', 'The practice text could not be shown. Try again.');
   await deps.store.markTexted(callId, now);
   return done(`Missed call from ${label} logged. The caller got your text.`);
@@ -169,7 +188,7 @@ async function handleKeywordOrLead(
     await deps.store.setOptedOut(call.callerNumber, false);
     return done('START recorded. This number can get texts again.');
   }
-  const provider = practiceProvider(sinkFor(deps, call.id));
+  const provider = practiceProvider(callerPhone(deps, call.id));
   if (keyword === 'help') {
     await provider.sendText({
       to: call.callerNumber as E164,
@@ -181,12 +200,9 @@ async function handleKeywordOrLead(
   if (call.status === 'missed' || call.status === 'texted') {
     await deps.store.setStatus(call.id, 'replied');
   }
-  const forwarded = await provider.sendText({
-    to: deps.line.ownerCell as E164,
-    from: PRACTICE_LINE_NUMBER,
-    body: leadText(call.callerNumber, body),
-  });
-  return done(forwarded.ok ? 'Your cell got the lead.' : 'The reply was saved.');
+  // "Your cell" is only a view of the lead. It is saved for the screen, never texted to owner_cell.
+  await deps.store.addMessage(call.id, 'forward', leadText(call.callerNumber, body));
+  return done('Your cell got the lead.');
 }
 
 /** Called back, Booked or Junk on a practice call. Junk stops practice texts to that number. */

@@ -5,20 +5,18 @@ import { requireUser } from '@speedy/auth/user';
 import { logger } from '@speedy/lib/logger';
 import { revalidatePath } from 'next/cache';
 
-import { env } from '@/config/env';
-
 import { getMyLine } from '../setup/line-queries';
-import { nextPracticeCaller } from './numbers';
 import {
   clearPractice,
   markPracticeCall,
   sendPracticeReply,
-  simulateMissedCall,
+  simulateNewCall,
+  simulateRepeatCall,
   type PracticeDeps,
   type PracticeResult,
 } from './practice-flow';
 import { guardPractice } from './practice-guard';
-import { readPractice } from './practice-state';
+import { PRACTICE_KEEP_MS } from './practice-state';
 import { supabasePracticeStore } from './practice-store';
 
 const log = logger.child({ feature: 'practice' });
@@ -32,25 +30,23 @@ const FAILED: PracticeActionResult = {
 };
 
 /**
- * Every practice action: sign in, read the owner's own line, and refuse unless the server itself
- * says the line has no real number. The mode is never taken from the request.
+ * Every practice action: sign in, read the owner's own line, and refuse unless the saved line has no
+ * number at all. The mode is never taken from the request, and the owner id comes only from the
+ * session. This file never builds a real SMS provider (see the lint rule on this folder): the
+ * practice provider is made inside the flow and writes to the owner's practice rows.
  */
 async function practiceAction(
-  run: (
-    deps: PracticeDeps,
-    owner: Awaited<ReturnType<typeof createServerSupabase>>,
-  ) => Promise<PracticeResult>,
+  run: (deps: PracticeDeps) => Promise<PracticeResult>,
 ): Promise<PracticeActionResult> {
   const user = await requireUser('/setup');
   try {
     const owner = await createServerSupabase();
-    const guarded = guardPractice(await getMyLine(owner), {
-      smsProvider: env.SMS_PROVIDER,
-      nodeEnv: env.NODE_ENV,
-    });
+    const guarded = guardPractice(await getMyLine(owner));
     if (!guarded.ok) return { ok: false, message: guarded.message };
     const store = supabasePracticeStore(createServiceSupabase(), user.id);
-    const result = await run({ store, line: guarded.line }, owner);
+    // Practice rows expire after a week.
+    await store.prune(new Date(Date.now() - PRACTICE_KEEP_MS));
+    const result = await run({ store, line: guarded.line });
     revalidatePath('/setup');
     revalidatePath('/calls');
     return result.ok ? { ok: true, note: result.note } : { ok: false, message: result.message };
@@ -60,13 +56,15 @@ async function practiceAction(
   }
 }
 
-/** A pretend missed call: from a new practice number, or again from `callerNumber` (to see the 24 hour rule). */
-export async function practiceCall(callerNumber?: string): Promise<PracticeActionResult> {
-  return practiceAction(async (deps, owner) => {
-    if (callerNumber) return simulateMissedCall(deps, callerNumber);
-    const used = (await readPractice(owner)).calls.map((c) => c.callerNumber);
-    return simulateMissedCall(deps, nextPracticeCaller(used));
-  });
+/**
+ * A pretend missed call. With no argument the caller is the next unused practice number, chosen
+ * here; with `repeatOfCallId` it is the same caller as one of the owner's own practice calls (to try
+ * the 24 hour rule). Nothing else about the caller can be supplied.
+ */
+export async function practiceCall(repeatOfCallId?: string): Promise<PracticeActionResult> {
+  return practiceAction((deps) =>
+    repeatOfCallId ? simulateRepeatCall(deps, String(repeatOfCallId)) : simulateNewCall(deps),
+  );
 }
 
 export async function practiceReply(callId: string, body: string): Promise<PracticeActionResult> {

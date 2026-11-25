@@ -40,6 +40,10 @@ export interface PracticeStore {
   /** Mark every practice call from this number as having texted STOP (or START). */
   setOptedOut(caller: string, optedOut: boolean): Promise<void>;
   addMessage(callId: string, direction: PracticeDirection, body: string): Promise<{ id: string }>;
+  /** Every caller number this owner has used in practice, newest first. */
+  callers(): Promise<string[]>;
+  /** Delete this owner's practice calls (and their texts) older than `before`. */
+  prune(before: Date): Promise<void>;
   /** Delete all of this owner's practice data. */
   clear(): Promise<void>;
 }
@@ -148,6 +152,26 @@ export function supabasePracticeStore(
         .single();
       if (error || !data) return fail('add message', error);
       return { id: data.id };
+    },
+
+    async callers() {
+      const { data, error } = await db
+        .from('practice_calls')
+        .select('caller_number')
+        .eq('owner_id', ownerId)
+        .order('received_at', { ascending: false })
+        .limit(200);
+      if (error) fail('list callers', error);
+      return (data ?? []).map((r) => r.caller_number);
+    },
+
+    async prune(before) {
+      const { error } = await db
+        .from('practice_calls')
+        .delete()
+        .eq('owner_id', ownerId)
+        .lt('received_at', before.toISOString());
+      if (error) fail('prune', error);
     },
 
     async clear() {

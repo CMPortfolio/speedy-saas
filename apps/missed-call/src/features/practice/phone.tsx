@@ -22,7 +22,9 @@ export function Phone({ title, received, messages, empty, testId }: PhoneProps) 
       data-testid={testId}
       className="mx-auto w-full max-w-xs space-y-2 rounded-[2rem] border-4 border-ink/80 bg-surface p-3"
     >
-      <h3 className="text-center text-sm font-semibold text-muted">{title}</h3>
+      <h3 className="text-center text-sm font-semibold text-muted">
+        {title} <span className="font-normal">· Practice</span>
+      </h3>
       <ol className="min-h-40 space-y-2">
         {messages.length === 0 && (
           <li className="px-2 py-6 text-center text-sm text-muted">{empty}</li>

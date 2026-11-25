@@ -12,11 +12,10 @@ const base: GuardLine = {
   timezone: 'America/New_York',
   ownerCell: '+12395550101',
 };
-const prod = { smsProvider: 'twilio', nodeEnv: 'production' };
 
 describe('guardPractice', () => {
   it('lets a saved line with no number practice, handing back only what the flow needs', () => {
-    const g = guardPractice(base, prod);
+    const g = guardPractice(base);
     expect(g.ok).toBe(true);
     expect(g.ok && g.line).toEqual({
       businessName: 'Gulf Coast Plumbing',
@@ -29,7 +28,7 @@ describe('guardPractice', () => {
   });
 
   it('refuses before the owner has saved a line', () => {
-    const g = guardPractice(null, prod);
+    const g = guardPractice(null);
     expect(!g.ok && g.message).toMatch(/Save your setup/);
   });
 
@@ -39,16 +38,18 @@ describe('guardPractice', () => {
       providerNumber: '+12395550142',
       messagingServiceSid: 'MG' + 'a'.repeat(32),
     };
-    const g = guardPractice(real, prod);
+    const g = guardPractice(real);
     expect(!g.ok && g.message).toMatch(/practice is switched off/);
   });
 
-  it('still practices with a number but no Messaging Service on the real provider in production', () => {
-    expect(guardPractice({ ...base, providerNumber: '+12395550142' }, prod).ok).toBe(true);
+  it('refuses with a number but no Messaging Service yet: that line is real, just unfinished', () => {
+    const g = guardPractice({ ...base, providerNumber: '+12395550142' });
+    expect(g.ok).toBe(false);
+    expect(!g.ok && g.message).toMatch(/practice is switched off/);
   });
 
   it('takes its answer only from the line and the server config, nothing else', () => {
-    // The function has no parameter a request could fill: a line row and the server config.
-    expect(guardPractice.length).toBe(2);
+    // The function has no parameter a request could fill: just the line row.
+    expect(guardPractice.length).toBe(1);
   });
 });

@@ -17,17 +17,14 @@ export type Guarded = { ok: true; line: PracticeLine } | { ok: false; message: s
 /**
  * Every practice action goes through this first, on the server, with the line read from the
  * database for the signed-in owner. Practice is refused when there is no saved line, and refused
- * again the moment the line has a real number: there is nothing a request can send to get past it.
+ * again the moment the line has any number: there is nothing a request can send to get past it.
  */
-export function guardPractice(
-  line: GuardLine | null,
-  config: { smsProvider: string; nodeEnv: string | undefined },
-): Guarded {
+export function guardPractice(line: GuardLine | null): Guarded {
   if (!line) return { ok: false, message: 'Save your setup first, then you can practice.' };
-  if (!practiceModeFor(line, config.smsProvider, config.nodeEnv)) {
+  if (!practiceModeFor(line)) {
     return {
       ok: false,
-      message: 'Your missed-call number is set up, so practice is switched off. Use real calls.',
+      message: 'Your missed-call number is set, so practice is switched off. Use real calls.',
     };
   }
   return {

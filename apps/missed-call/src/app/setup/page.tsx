@@ -23,10 +23,7 @@ export default async function SetupPage() {
   // Ready means a number and, on the real provider in production, the owner's Messaging Service too.
   const numberReady = line ? lineNumberReady(line, env.SMS_PROVIDER, env.NODE_ENV) : false;
   // Practice is decided here, on the server, from the saved line: no real number, practice phone.
-  const practice =
-    line && practiceModeFor(line, env.SMS_PROVIDER, env.NODE_ENV)
-      ? await readPractice(owner)
-      : null;
+  const practice = line && practiceModeFor(line) ? await readPractice(owner) : null;
   return (
     <section className="space-y-8 py-6">
       <header className="space-y-2">

@@ -9,34 +9,34 @@ const both = { providerNumber: '+12395550142', messagingServiceSid: SID };
 
 describe('practiceModeFor', () => {
   it('is off before the owner has saved a line', () => {
-    expect(practiceModeFor(null, 'twilio', 'production')).toBe(false);
+    expect(practiceModeFor(null)).toBe(false);
   });
 
-  it('is on for a saved line with no number yet', () => {
-    expect(practiceModeFor(none, 'twilio', 'production')).toBe(true);
-    expect(practiceModeFor(none, 'fake', 'development')).toBe(true);
+  it('is on for a saved line with no number', () => {
+    expect(practiceModeFor(none)).toBe(true);
   });
 
-  it('is on in production on Twilio while the number has no Messaging Service', () => {
-    expect(practiceModeFor(numberOnly, 'twilio', 'production')).toBe(true);
+  it('is off as soon as the line has any number, even before its Messaging Service is set', () => {
+    expect(practiceModeFor(numberOnly)).toBe(false);
+    expect(practiceModeFor(both)).toBe(false);
   });
 
-  it('is off as soon as the line has a real number and its service', () => {
-    expect(practiceModeFor(both, 'twilio', 'production')).toBe(false);
-  });
-
-  it('is off with just a number on the fake provider or in development, like the setup page', () => {
-    expect(practiceModeFor(numberOnly, 'fake', 'production')).toBe(false);
-    expect(practiceModeFor(numberOnly, 'twilio', 'development')).toBe(false);
-  });
-
-  it('is exactly the opposite of a ready line for any saved line', () => {
-    for (const line of [none, numberOnly, both]) {
-      for (const provider of ['twilio', 'fake']) {
-        for (const env of ['production', 'development', undefined]) {
-          expect(practiceModeFor(line, provider, env)).toBe(!lineNumberReady(line, provider, env));
-        }
-      }
+  it('reads only the number: no provider, environment or Messaging Service can turn it on', () => {
+    expect(practiceModeFor.length).toBe(1);
+    for (const sid of [null, SID]) {
+      expect(
+        practiceModeFor({ providerNumber: '+12395550142', messagingServiceSid: sid } as never),
+      ).toBe(false);
     }
+  });
+});
+
+describe('lineNumberReady (the setup page)', () => {
+  it('needs the number, and on Twilio in production the Messaging Service too', () => {
+    expect(lineNumberReady(none, 'twilio', 'production')).toBe(false);
+    expect(lineNumberReady(numberOnly, 'twilio', 'production')).toBe(false);
+    expect(lineNumberReady(both, 'twilio', 'production')).toBe(true);
+    expect(lineNumberReady(numberOnly, 'fake', 'production')).toBe(true);
+    expect(lineNumberReady(numberOnly, 'twilio', 'development')).toBe(true);
   });
 });

@@ -103,6 +103,16 @@ test('an owner with no number practices the whole flow, nothing is sent, and it 
     .eq('line_id', line.data?.id ?? '');
   expect(realCalls.data).toEqual([]);
   expect((await request.get('/api/dev/sms/sent')).status()).toBe(404);
+  // No Twilio client was needed or built (there are no credentials to build one with), the real
+  // webhooks still refuse unsigned posts, and practice has no endpoint of its own to post to.
+  for (const path of ['/api/voice/incoming', '/api/sms/inbound']) {
+    const unsigned = await request.post(path, {
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      data: 'From=%2B12395550123&To=%2B12395550100&CallStatus=ringing&CallSid=CAunsigned',
+    });
+    expect(unsigned.status()).toBeGreaterThanOrEqual(400);
+  }
+  expect((await request.get('/api/practice')).status()).toBe(404);
 
   // It also shows on /calls, where real calls will be.
   await page.goto('/calls');
@@ -112,14 +122,11 @@ test('an owner with no number practices the whole flow, nothing is sent, and it 
   await page.getByTestId('practice-clear').click();
   await expect(page.getByTestId('practice-call-row')).toHaveCount(0);
 
-  // A real number and Messaging Service switch practice off.
+  // Any number switches practice off, even before the Messaging Service is set.
   const set = await admin
     .schema('missed_call')
     .from('lines')
-    .update({
-      provider_number: `+1239571${digits}`,
-      provider_messaging_service_sid: 'MG' + 'd'.repeat(32),
-    })
+    .update({ provider_number: `+1239571${digits}` })
     .eq('owner_id', userId);
   expect(set.error).toBeNull();
   await page.goto('/setup');

@@ -1,22 +1,40 @@
 import type { Database } from '@speedy/db/types';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { guardPractice } from '../../src/features/practice/practice-guard';
+// If anything the practice actions load tried to load or build a Twilio client, or the real SMS
+// provider setup, these would throw and every test below would fail.
+vi.mock('twilio', () => {
+  throw new Error('practice mode must never load the Twilio SDK');
+});
+vi.mock('@/config/sms', () => {
+  throw new Error('practice mode must never use the real SMS provider');
+});
+
+const session = vi.hoisted(() => ({
+  userId: '',
+  owner: undefined as unknown,
+  service: undefined as unknown,
+}));
+vi.mock('@speedy/auth/server', () => ({
+  createServerSupabase: async () => session.owner,
+  createServiceSupabase: () => session.service,
+}));
+vi.mock('@speedy/auth/user', () => ({ requireUser: async () => ({ id: session.userId }) }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+
 import {
-  clearPractice,
-  markPracticeCall,
-  sendPracticeReply,
-  simulateMissedCall,
-} from '../../src/features/practice/practice-flow';
+  practiceCall,
+  practiceClear,
+  practiceMark,
+  practiceReply,
+} from '../../src/features/practice/practice-actions';
 import { readPractice } from '../../src/features/practice/practice-state';
-import { supabasePracticeStore } from '../../src/features/practice/practice-store';
-import { getMyLine } from '../../src/features/setup/line-queries';
 
 /**
- * Practice mode against the real tables and functions on the local Supabase stack (DB_TESTS=1):
- * owner scoping, no leakage into the real tables, the hourly limit, and the switch-off once a real
- * number is set. No provider is involved at all.
+ * Practice mode through the real server actions against the local Supabase stack (DB_TESTS=1): the
+ * owner comes only from the session, every id is checked against that owner, practice is refused
+ * the moment the line has a number, and no provider is involved at all.
  */
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,7 +45,6 @@ const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient<Database>(url ?? 'http://127.0.0.1', serviceKey ?? 'x', opts);
 const password = `pw-${crypto.randomUUID()}`;
 const tag = Date.now();
-const prod = { smsProvider: 'twilio', nodeEnv: 'production' };
 
 interface Owner {
   id: string;
@@ -57,10 +74,11 @@ async function makeOwner(name: string): Promise<Owner> {
   return { id, db, lineId: line.data?.id ?? '' };
 }
 
-const deps = async (owner: Owner) => {
-  const guarded = guardPractice(await getMyLine(owner.db), prod);
-  if (!guarded.ok) throw new Error(guarded.message);
-  return { store: supabasePracticeStore(admin, owner.id), line: guarded.line };
+/** Act as this owner: the session the actions read. */
+const as = (o: Owner) => {
+  session.userId = o.id;
+  session.owner = o.db;
+  session.service = admin;
 };
 
 beforeAll(async () => {
@@ -73,46 +91,71 @@ afterAll(async () => {
   for (const o of [a, b]) if (o?.id) await admin.auth.admin.deleteUser(o.id);
 });
 
-describe.skipIf(!enabled)('practice mode against the database', () => {
-  it('runs the whole flow and each owner sees only their own practice', async () => {
-    const d = await deps(a);
-    expect((await simulateMissedCall(d, '+12395550123')).ok).toBe(true);
+describe.skipIf(!enabled)('practice mode through the server actions', () => {
+  it('runs the whole flow, with the caller chosen on the server and each owner seeing only their own', async () => {
+    as(a);
+    const r = await practiceCall();
+    expect(r.ok && r.note).toMatch(/The caller got your text/);
     const view = await readPractice(a.db);
     expect(view.calls).toHaveLength(1);
-    expect(view.calls[0]).toMatchObject({ callerNumber: '+12395550123', status: 'texted' });
-    expect(view.messages.map((m) => m.direction)).toEqual(['out']);
+    expect(view.calls[0]?.callerNumber).toMatch(/^\+12395550(1[0-9]{2})$/);
+    expect(view.calls[0]?.status).toBe('texted');
     expect(view.messages[0]?.body).toContain('Sorry we missed you. What do you need?');
 
-    await sendPracticeReply(d, view.calls[0]!.id, 'leaking water heater, garage');
+    const reply = await practiceReply(view.calls[0]!.id, 'leaking water heater, garage');
+    expect(reply.ok).toBe(true);
     const after = await readPractice(a.db);
     expect(after.calls[0]?.status).toBe('replied');
     expect(after.messages.map((m) => m.direction)).toEqual(['out', 'in', 'forward']);
-    expect(after.messages.at(-1)?.body).toBe(
-      'New lead from (239) 555-0123: leaking water heater, garage',
+    expect(after.messages.at(-1)?.body).toMatch(
+      /^New lead from \(239\) 555-01\d\d: leaking water heater, garage$/,
     );
 
     expect((await readPractice(b.db)).calls).toEqual([]);
     expect((await readPractice(b.db)).messages).toEqual([]);
   });
 
-  it('owner B cannot see, change or clear owner A practice, and cannot write practice rows', async () => {
-    const callId = (await readPractice(a.db)).calls[0]!.id;
-    const db = b.db.schema('missed_call');
-    expect((await db.from('practice_calls').select('id').eq('id', callId)).data).toEqual([]);
-    const forged = await db
-      .from('practice_calls')
-      .insert({ owner_id: b.id, caller_number: '+12395550150' });
+  it('owner B cannot touch owner A practice by id, and A is left exactly as it was', async () => {
+    const view = await readPractice(a.db);
+    const callId = view.calls[0]!.id;
+    as(b);
+    for (const result of [
+      await practiceReply(callId, 'hijack'),
+      await practiceMark(callId, 'junk'),
+      await practiceCall(callId),
+    ]) {
+      expect(result.ok).toBe(false);
+    }
+    // A made-up id is refused too, not a crash.
+    expect((await practiceMark('not-a-real-id', 'junk')).ok).toBe(false);
+    expect(await readPractice(a.db)).toEqual(view);
+    expect((await readPractice(b.db)).calls).toEqual([]);
+
+    // B cannot write practice rows straight through the API either.
+    const forged = await b.db
+      .schema('missed_call')
+      .from('practice_messages')
+      .insert({ owner_id: b.id, call_id: callId, direction: 'in', body: 'x' });
     expect(forged.error).not.toBeNull();
-    const edit = await db.from('practice_calls').update({ status: 'junk' }).eq('id', callId);
-    expect(edit.error).not.toBeNull();
-    // B's own store cannot reach A's call either, by id.
-    const dB = await deps(b);
-    const r = await markPracticeCall(dB, callId, 'junk');
-    expect(!r.ok && r.code).toBe('not_found');
-    expect((await readPractice(a.db)).calls[0]?.status).toBe('replied');
+    const clear = await practiceClear();
+    expect(clear.ok).toBe(true);
+    as(a);
+    expect((await readPractice(a.db)).calls).toHaveLength(1);
   });
 
-  it('practice leaves the real tables alone', async () => {
+  it('repeats the same caller by id, inside the 24 hour rule, and Junk stops texts to it', async () => {
+    as(a);
+    const first = (await readPractice(a.db)).calls[0]!;
+    const again = await practiceCall(first.id);
+    expect(again.ok && again.note).toMatch(/24 hours/);
+    expect((await practiceMark(first.id, 'junk')).ok).toBe(true);
+    const junk = await practiceCall(first.id);
+    expect(junk.ok && junk.note).toMatch(/Junk/);
+    const out = (await readPractice(a.db)).messages.filter((m) => m.direction === 'out');
+    expect(out).toHaveLength(1);
+  });
+
+  it('never touches the real tables or the real opt-out and verified state', async () => {
     const calls = await admin
       .schema('missed_call')
       .from('calls')
@@ -125,52 +168,82 @@ describe.skipIf(!enabled)('practice mode against the database', () => {
       .select('id')
       .eq('line_id', a.lineId);
     expect(blocked.data).toEqual([]);
-    const callerRows = await admin
+    const line = await admin
       .schema('missed_call')
-      .from('calls')
+      .from('lines')
+      .select('owner_cell_verified')
+      .eq('id', a.lineId)
+      .single();
+    expect(line.data?.owner_cell_verified).toBe(false);
+  });
+
+  it('hides practice older than a week and deletes it the next time the owner practices', async () => {
+    as(b);
+    const old = await admin
+      .schema('missed_call')
+      .from('practice_calls')
+      .insert({
+        owner_id: b.id,
+        caller_number: '+12395550177',
+        received_at: new Date(Date.now() - 8 * 24 * 3600_000).toISOString(),
+      })
       .select('id')
-      .eq('caller_number', '+12395550123');
-    expect(callerRows.data).toEqual([]);
+      .single();
+    expect(old.error).toBeNull();
+    expect((await readPractice(b.db)).calls).toEqual([]);
+    await practiceClear();
+    const stale = await admin
+      .schema('missed_call')
+      .from('practice_calls')
+      .insert({
+        owner_id: b.id,
+        caller_number: '+12395550178',
+        received_at: new Date(Date.now() - 9 * 24 * 3600_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    expect((await practiceCall()).ok).toBe(true);
+    const left = await admin
+      .schema('missed_call')
+      .from('practice_calls')
+      .select('id')
+      .eq('id', stale.data?.id ?? '');
+    expect(left.data).toEqual([]);
+    await practiceClear();
   });
+});
 
-  it('Junk in practice stops practice texts to that number, like the real thing', async () => {
-    const d = await deps(a);
-    const id = (await readPractice(a.db)).calls[0]!.id;
-    await markPracticeCall(d, id, 'junk');
-    const r = await simulateMissedCall(d, '+12395550123');
-    expect(r.ok && r.note).toMatch(/Junk/);
-    const out = (await readPractice(a.db)).messages.filter((m) => m.direction === 'out');
-    expect(out).toHaveLength(1);
-  });
-
-  it('stops at the hourly limit', async () => {
-    const d = await deps(b);
+describe.skipIf(!enabled)('practice limits, expiry and switch-off', () => {
+  it('stops at the hourly limit and clear always works', async () => {
+    as(b);
     let refused = false;
-    for (let i = 0; i < 61 && !refused; i += 1) {
-      const r = await simulateMissedCall(d, `+12395550${String(101 + (i % 90)).padStart(3, '0')}`);
-      if (!r.ok) {
-        expect(r.code).toMatch(/rate_limited|full/);
-        refused = true;
-      }
+    for (let i = 0; i < 62 && !refused; i += 1) {
+      const r = await practiceCall();
+      if (!r.ok) refused = true;
     }
     expect(refused).toBe(true);
-    expect((await clearPractice(d)).ok).toBe(true);
+    expect((await practiceClear()).ok).toBe(true);
     expect((await readPractice(b.db)).calls).toEqual([]);
   });
 
-  it('is refused once a real number and Messaging Service are set on the line', async () => {
-    expect(guardPractice(await getMyLine(a.db), prod).ok).toBe(true);
+  it('is refused as soon as the line has any number, even before the Messaging Service', async () => {
+    as(a);
     const set = await admin
       .schema('missed_call')
       .from('lines')
-      .update({
-        provider_number: `+1239570${String(tag).slice(-4)}`,
-        provider_messaging_service_sid: 'MG' + 'c'.repeat(32),
-      })
+      .update({ provider_number: `+1239570${String(tag).slice(-4)}` })
       .eq('id', a.lineId);
     expect(set.error).toBeNull();
-    const after = guardPractice(await getMyLine(a.db), prod);
-    expect(after.ok).toBe(false);
-    expect(!after.ok && after.message).toMatch(/practice is switched off/);
+    const id = (await readPractice(a.db)).calls[0]!.id;
+    for (const r of [
+      await practiceCall(),
+      await practiceCall(id),
+      await practiceReply(id, 'hi'),
+      await practiceMark(id, 'booked'),
+      await practiceClear(),
+    ]) {
+      expect(!r.ok && r.message).toMatch(/practice is switched off/);
+    }
+    expect((await readPractice(a.db)).calls).toHaveLength(3);
   });
 });

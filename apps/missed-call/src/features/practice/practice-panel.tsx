@@ -40,6 +40,15 @@ function pickCall(view: PracticeView, selected: string | null) {
   };
 }
 
+/** Marks everything on screen as practice, so it is never mistaken for a real call. */
+function PracticeBadge() {
+  return (
+    <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted">
+      Practice
+    </span>
+  );
+}
+
 function ResultNote({ result }: { result: PracticeActionResult | null }) {
   if (!result) return null;
   return (
@@ -87,8 +96,11 @@ function CallRows({
             >
               {formatUsPhone(call.callerNumber)}
             </button>
-            <span data-testid="practice-status" className="text-sm font-medium text-muted">
-              {STATUS_LABEL[call.status]}
+            <span className="flex items-center gap-2">
+              <PracticeBadge />
+              <span data-testid="practice-status" className="text-sm font-medium text-muted">
+                {STATUS_LABEL[call.status]}
+              </span>
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -110,7 +122,7 @@ function CallRows({
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run(() => practiceCall(call.callerNumber))}
+              onClick={() => run(() => practiceCall(call.id))}
             >
               Calls again
             </Button>

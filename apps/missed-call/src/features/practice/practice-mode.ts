@@ -19,14 +19,11 @@ export function lineNumberReady(
 }
 
 /**
- * Practice mode is on for an owner who has saved a line that has no real number yet, and off the
- * moment it has one. It is decided here, on the server, from the line in the database and the
- * server's own configuration. Nothing the browser sends can turn it on.
+ * Practice mode is on for an owner who has saved a line that has no number at all, and off the
+ * moment it has one, even before its Messaging Service is set: a line with a number is a real line
+ * that is waiting to be finished, not a practice line. It is decided here, on the server, from the
+ * line in the database. Nothing the browser sends can turn it on.
  */
-export function practiceModeFor(
-  line: LineNumberState | null,
-  smsProvider: string,
-  nodeEnv: string | undefined,
-): boolean {
-  return line !== null && !lineNumberReady(line, smsProvider, nodeEnv);
+export function practiceModeFor(line: Pick<LineNumberState, 'providerNumber'> | null): boolean {
+  return line !== null && line.providerNumber === null;
 }

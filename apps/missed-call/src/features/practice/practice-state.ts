@@ -9,20 +9,26 @@ export interface PracticeView {
   messages: PracticeMessageRow[];
 }
 
+/** Practice rows older than this are hidden, and pruned the next time the owner practices. */
+export const PRACTICE_KEEP_MS = 7 * 24 * 3600_000;
+
 export const emptyPractice: PracticeView = { calls: [], messages: [] };
 
 /** The owner's own practice rows, newest call first. `client` carries their session, so RLS limits it to them. */
 export async function readPractice(client: SupabaseClient<Database>): Promise<PracticeView> {
   const db = client.schema('missed_call');
+  const since = new Date(Date.now() - PRACTICE_KEEP_MS).toISOString();
   const [calls, messages] = await Promise.all([
     db
       .from('practice_calls')
       .select('id, caller_number, received_at, status, texted_at, opted_out')
+      .gt('received_at', since)
       .order('received_at', { ascending: false })
       .limit(50),
     db
       .from('practice_messages')
       .select('id, call_id, direction, body, created_at')
+      .gt('created_at', since)
       .order('created_at', { ascending: true })
       .limit(400),
   ]);

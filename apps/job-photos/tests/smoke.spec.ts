@@ -187,3 +187,10 @@ test('cron cleanup route refuses anyone without the secret', async ({ request })
   });
   expect(wrong.status()).toBe(401);
 });
+
+test('brand icons are served (no 404 on /favicon.ico)', async ({ request }) => {
+  for (const path of ['/favicon.ico', '/icon.png', '/apple-icon.png', '/naples-mark.png']) {
+    const res = await request.get(path);
+    expect(res.ok(), path).toBe(true);
+  }
+});

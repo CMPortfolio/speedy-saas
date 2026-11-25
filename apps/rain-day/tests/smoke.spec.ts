@@ -26,7 +26,7 @@ test('landing page loads with metadata, start button and footer', async ({ page 
   await expect(page.getByRole('contentinfo')).toContainText('Naples AI');
 });
 
-test('landing page speaks to lawn, pool and outdoor trades and says what it will not do', async ({
+test('landing page speaks to lawn, pool and outdoor trades and says who it works for', async ({
   page,
 }) => {
   await page.goto('/');
@@ -34,7 +34,7 @@ test('landing page speaks to lawn, pool and outdoor trades and says what it will
   await expect(trades).toContainText('Lawn care');
   await expect(trades).toContainText('Pool service');
   await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
-  await expect(page.getByRole('main')).toContainText('does not plan routes');
+  await expect(page.getByRole('main')).toContainText('Works with US cell numbers');
 });
 
 test('open graph image renders', async ({ request }) => {
@@ -50,3 +50,10 @@ for (const path of ['/customers', '/customers/import', '/settings']) {
     await expect(page.getByLabel('Email')).toBeVisible();
   });
 }
+
+test('brand icons are served (no 404 on /favicon.ico)', async ({ request }) => {
+  for (const path of ['/favicon.ico', '/icon.png', '/apple-icon.png', '/naples-mark.png']) {
+    const res = await request.get(path);
+    expect(res.ok(), path).toBe(true);
+  }
+});

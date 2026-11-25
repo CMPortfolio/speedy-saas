@@ -31,19 +31,21 @@ export function MoreFromNaplesAI({
     <nav aria-label="More from Naples AI" className={cn('flex flex-col gap-3', className)}>
       {more.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-ink">More from Naples AI</h2>
+          <h2 className="font-sans font-semibold tracking-[0.08em] text-xs uppercase text-on-navy-muted">
+            More from Naples AI
+          </h2>
           <ul className="grid gap-2 sm:grid-cols-3">
             {more.map((tool) => (
               <li key={tool.slug}>
                 <a
                   href={tool.url}
                   className={cn(
-                    'flex min-h-tap flex-col justify-center rounded-brand border border-border',
-                    'bg-surface px-3 py-2 hover:border-primary',
+                    'flex min-h-tap flex-col justify-center rounded-brand border border-line-dark',
+                    'bg-white/5 px-3 py-2 hover:border-brand-light hover:bg-white/10',
                   )}
                 >
-                  <span className="text-sm font-medium text-ink">{tool.name}</span>
-                  <span className="text-xs text-muted">{tool.pitch}</span>
+                  <span className="text-sm font-medium text-white">{tool.name}</span>
+                  <span className="text-xs text-on-navy">{tool.pitch}</span>
                 </a>
               </li>
             ))}
@@ -52,7 +54,7 @@ export function MoreFromNaplesAI({
       )}
       <a
         href={site.url}
-        className="inline-flex min-h-tap items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+        className="inline-flex min-h-tap items-center text-sm font-medium text-white underline underline-offset-4"
       >
         See everything at {site.name}
       </a>

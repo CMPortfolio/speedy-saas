@@ -89,7 +89,7 @@ export function CellConfirm({ canSend }: { canSend: boolean }) {
               required
               aria-invalid={problem ? true : undefined}
               aria-describedby={problem ? 'cell-code-error' : undefined}
-              className="min-h-tap w-full rounded-brand border border-border bg-surface px-3 text-lg tracking-widest text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="min-h-tap w-full rounded-brand border border-field bg-surface px-3 text-lg tracking-widest text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

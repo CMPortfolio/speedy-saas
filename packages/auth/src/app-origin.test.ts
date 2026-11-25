@@ -45,4 +45,27 @@ describe('appOrigin', () => {
       else process.env.APP_URL = before;
     }
   });
+
+  describe('in production', () => {
+    it('uses APP_URL as before', () => {
+      expect(
+        appOrigin('https://localhost:8080', 'https://job-photos.naplesaiagency.com', 'production'),
+      ).toBe('https://job-photos.naplesaiagency.com');
+    });
+
+    it.each([undefined, '', 'localhost:3000', 'ftp://files.example', 'not a url'])(
+      'throws instead of guessing when APP_URL is %j',
+      (bad) => {
+        expect(() => appOrigin('https://localhost:8080', bad, 'production')).toThrow(/APP_URL/);
+      },
+    );
+
+    it('does not throw in development or test, where the fallback is fine', () => {
+      expect(appOrigin('http://localhost:3002', undefined, 'development')).toBe(
+        'http://localhost:3002',
+      );
+      expect(appOrigin('http://localhost:3002', undefined, 'test')).toBe('http://localhost:3002');
+      expect(appOrigin(undefined, undefined, undefined)).toBe('http://localhost:3000');
+    });
+  });
 });

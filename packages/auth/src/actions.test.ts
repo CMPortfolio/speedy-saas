@@ -56,4 +56,14 @@ describe('sendMagicLink redirect', () => {
     await sendMagicLink({ status: 'idle' }, form('owner@resend.dev'));
     expect(redirectTo().startsWith('http://localhost:3001/auth/callback')).toBe(true);
   });
+
+  it('throws in production when APP_URL is missing, so no email goes out with a wrong link', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_URL', '');
+    originHeader = 'https://evil.example';
+    await expect(sendMagicLink({ status: 'idle' }, form('owner@resend.dev'))).rejects.toThrow(
+      /APP_URL/,
+    );
+    expect(signInWithOtp).not.toHaveBeenCalled();
+  });
 });

@@ -62,4 +62,12 @@ describe('auth callback redirects', () => {
     const res = await GET(request('token_hash=abc&type=magiclink&next=/setup'));
     expect(res.headers.get('location')).toBe(`${INTERNAL}/setup`);
   });
+
+  it('fails loudly in production when APP_URL is missing, instead of redirecting to the container', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_URL', '');
+    await expect(GET(request('token_hash=abc&type=magiclink&next=/setup'))).rejects.toThrow(
+      /APP_URL/,
+    );
+  });
 });

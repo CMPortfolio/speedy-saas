@@ -21,6 +21,8 @@ export default defineConfig({
     command: `pnpm exec next start -p ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    // Production builds refuse to guess the public address for sign-in redirects.
+    env: { APP_URL: baseURL },
     timeout: 120_000,
   },
 });

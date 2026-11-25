@@ -33,5 +33,33 @@ export default tseslint.config(
       'max-lines-per-function': ['error', { max: 120, skipBlankLines: true, skipComments: true }],
     },
   },
+  {
+    // Client-side code never touches server-only modules. Server components, server actions,
+    // route handlers and middleware live outside these folders.
+    files: ['**/components/**', '**/hooks/**', '**/*.client.{ts,tsx}', '**/use-*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@speedy/auth/server',
+                '@speedy/auth/user',
+                '@speedy/sms/server',
+                'server-only',
+              ],
+              message:
+                'Server-only module imported from client-side code (CLAUDE.md: service-role key stays on the server).',
+            },
+            {
+              group: ['@speedy/*/src/*'],
+              message: "Import shared code only through the package's exports (CLAUDE.md rule 4).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );

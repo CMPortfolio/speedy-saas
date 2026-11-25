@@ -27,11 +27,6 @@ export const houseLimits = {
           group: ['@speedy/*/src/*', '../../packages/*', '../../../packages/*'],
           message: "Import shared code only through the package's exports (CLAUDE.md rule 4).",
         },
-        {
-          group: ['@speedy/auth/server', '@speedy/db/server'],
-          importNames: ['createServiceClient', 'serviceRoleKey'],
-          message: 'Service-role access is server-only. Import it from a server file.',
-        },
       ],
     },
   ],

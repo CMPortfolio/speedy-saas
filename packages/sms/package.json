@@ -11,7 +11,8 @@
     "./keywords": "./src/keywords.ts",
     "./send": "./src/send.ts",
     "./env": "./src/env.ts",
-    "./create": "./src/create.ts"
+    "./create": "./src/create.ts",
+    "./verify-phone": "./src/verify-phone.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

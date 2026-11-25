@@ -12,7 +12,6 @@ export const hasSupabase = Boolean(supabaseUrl && serviceKey);
 
 const FAKE_SIGNATURE_HEADER = 'x-speedy-fake-signature';
 const FAKE_SIGNATURE = 'fake-signature-ok';
-export const BUSINESS_NUMBER = '+12395550100';
 
 function adminHeaders() {
   return {
@@ -26,6 +25,8 @@ export interface TestOwner {
   id: string;
   email: string;
   tokenHash: string;
+  /** The owner's own texting number once an admin has set it (see assignSenderNumber). */
+  senderNumber?: string;
 }
 
 /** A new confirmed user and a one-time sign-in token for them. */
@@ -50,6 +51,29 @@ export async function deleteOwner(request: APIRequestContext, id: string): Promi
   await request.delete(`${supabaseUrl}/auth/v1/admin/users/${id}`, { headers: adminHeaders() });
 }
 
+/**
+ * Stands in for the admin who gives an owner their own texting number: writes
+ * rain_day.owner_settings.sender_number with the service role (owners cannot write it).
+ * The number is random per call so runs never collide on the unique index.
+ */
+export async function assignSenderNumber(
+  request: APIRequestContext,
+  owner: TestOwner,
+): Promise<string> {
+  const number = `+123974${String(Math.floor(Math.random() * 100_000)).padStart(5, '0')}`;
+  const res = await request.post(`${supabaseUrl}/rest/v1/owner_settings?on_conflict=owner_id`, {
+    headers: {
+      ...adminHeaders(),
+      'content-profile': 'rain_day',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    data: { owner_id: owner.id, sender_number: number },
+  });
+  if (!res.ok()) throw new Error(`could not set the sender number: ${res.status()}`);
+  owner.senderNumber = number;
+  return number;
+}
+
 /** Open the app's own callback with the token, as clicking the emailed link would. */
 export async function signIn(page: Page, owner: TestOwner, next = '/settings'): Promise<void> {
   await page.goto(
@@ -61,10 +85,11 @@ const signed = {
   headers: { [FAKE_SIGNATURE_HEADER]: FAKE_SIGNATURE, 'content-type': 'application/json' },
 };
 
-/** A customer texts the business number. Goes through the real signed inbound webhook. */
+/** A customer texts an owner's number. Goes through the real signed inbound webhook. */
 export async function customerTexts(
   request: APIRequestContext,
   from: string,
+  to: string,
   body: string,
 ): Promise<number> {
   const res = await request.post('/api/sms/inbound', {
@@ -72,7 +97,7 @@ export async function customerTexts(
     data: {
       kind: 'inbound',
       from,
-      to: BUSINESS_NUMBER,
+      to,
       body,
       providerMessageId: `FAKE-IN-${crypto.randomUUID()}`,
     },

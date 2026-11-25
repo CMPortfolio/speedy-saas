@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 import {
+  assignSenderNumber,
   createOwner,
   customerTexts,
   deleteOwner,
@@ -72,8 +73,17 @@ test('import 15 customers, run a rain day, see 15 individual sends and the opted
   await expect(page).toHaveURL(/\/customers$/);
   await expect(page.getByRole('list', { name: 'Customers' }).getByRole('listitem')).toHaveCount(15);
 
-  // One customer texts STOP to the business number.
-  expect(await customerTexts(request, OPTED_OUT.phone, 'STOP')).toBe(204);
+  // Until an admin gives this owner a texting number, Send is off and says why.
+  await page.goto('/rain-day');
+  await page.getByLabel("Day that's off").fill(nextWeekday(2));
+  await expect(page.getByRole('heading', { name: /Tuesday customers/ })).toBeVisible();
+  await expect(page.getByText("Your texting number isn't set up yet.")).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Send \d+ texts?$/ })).toBeDisabled();
+
+  const senderNumber = await assignSenderNumber(request, owner);
+
+  // One customer texts STOP to the owner's number.
+  expect(await customerTexts(request, OPTED_OUT.phone, senderNumber, 'STOP')).toBe(200);
 
   // Pick the Tuesday that is off; the new day follows as Wednesday.
   const tuesday = nextWeekday(2);
@@ -119,7 +129,9 @@ test('import 15 customers, run a rain day, see 15 individual sends and the opted
   await expect(page.locator('li[data-status="skipped"]')).toHaveCount(1);
 
   // A customer replies and it shows up in the Replies list.
-  expect(await customerTexts(request, '+12395551100', 'Can you do Thursday instead?')).toBe(204);
+  expect(
+    await customerTexts(request, '+12395551100', senderNumber, 'Can you do Thursday instead?'),
+  ).toBe(200);
   await page.goto('/rain-day/replies');
   await expect(page.getByRole('list', { name: 'Replies' })).toContainText(
     'Can you do Thursday instead?',

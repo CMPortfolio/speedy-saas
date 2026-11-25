@@ -1,10 +1,10 @@
 import type { Db } from '@speedy/db/core';
-import type { SchemaTables } from '@speedy/db/types';
+import type { Tables } from '@speedy/db/types';
 
 import type { Customer } from '@/features/customers/queries';
 
-export type Reschedule = SchemaTables<'rain_day', 'reschedules'>;
-export type RescheduleMessage = SchemaTables<'rain_day', 'reschedule_messages'>;
+export type Reschedule = Tables<{ schema: 'rain_day' }, 'reschedules'>;
+export type RescheduleMessage = Tables<{ schema: 'rain_day' }, 'reschedule_messages'>;
 
 /** The owner's customers whose usual day is `day` (0 = Sunday). RLS limits rows to the owner. */
 export async function listCustomersForDay(db: Db, day: number): Promise<Customer[]> {

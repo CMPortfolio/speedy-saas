@@ -1,8 +1,8 @@
 import type { Db } from '@speedy/db/core';
-import type { SchemaTables } from '@speedy/db/types';
+import type { Tables } from '@speedy/db/types';
 import type { E164 } from '@speedy/lib/phone';
 
-export type OwnerSettings = SchemaTables<'rain_day', 'owner_settings'>;
+export type OwnerSettings = Tables<{ schema: 'rain_day' }, 'owner_settings'>;
 
 /** The signed-in owner's settings row, or null. RLS limits it to their own. */
 export async function getOwnerSettings(db: Db): Promise<OwnerSettings | null> {

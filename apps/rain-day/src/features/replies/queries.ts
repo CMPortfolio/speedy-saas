@@ -1,7 +1,7 @@
 import type { Db } from '@speedy/db/core';
-import type { SchemaTables } from '@speedy/db/types';
+import type { Tables } from '@speedy/db/types';
 
-export type Reply = SchemaTables<'rain_day', 'replies'>;
+export type Reply = Tables<{ schema: 'rain_day' }, 'replies'>;
 
 /** The owner's most recent replies. RLS limits rows to the owner. */
 export async function listReplies(db: Db, limit = 20): Promise<Reply[]> {

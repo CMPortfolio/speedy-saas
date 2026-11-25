@@ -95,8 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Add rain-day here once it is merged.
-        app: [job-photos, missed-call]
+        app: [job-photos, missed-call, rain-day]
     env:
       # Runs against the local Supabase stack from packages/db/local (the same one developers use);
       # the demo keys are read from its docker-compose file below, not copied into this workflow.

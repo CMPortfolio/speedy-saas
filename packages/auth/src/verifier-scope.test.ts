@@ -95,7 +95,9 @@ function tool(jar: Jar, host: string, scoped: boolean, secure = true) {
   };
   const client = createServerClient(URL_, KEY, {
     cookieOptions: authCookieOptions(DOMAIN, secure),
-    cookies: scoped ? scopedCookieMethods(base, verifierScope(`https://${host}`)) : base,
+    cookies: scoped
+      ? scopedCookieMethods(base, verifierScope(`https://${host}`), { secure })
+      : base,
     global: { fetch: fakeFetch },
   });
   return { client, sent };
@@ -176,6 +178,40 @@ describe('the PKCE verifier is per tool, the session is shared', () => {
     // And Rain day sees the session Missed Call just made.
     const seen = jar.for('rain-day.naplesaiagency.com').map((c) => c.name);
     expect(seen.some((n) => n.includes('auth-token') && !n.includes('code-verifier'))).toBe(true);
+  });
+});
+
+describe('which form of the verifier cookie is trusted', () => {
+  const plain = 'sb-ref-auth-token-code-verifier';
+  const scoped = `${plain}~rain-day-naplesaiagency-com`;
+  const read = (names: string[], secure: boolean) =>
+    scopedCookieMethods(
+      { getAll: () => names.map((name) => ({ name, value: 'v' })), setAll: () => undefined },
+      'rain-day-naplesaiagency-com',
+      { secure },
+    )
+      .getAll()
+      .map((c) => c.name);
+
+  it('over https only the __Host- form is read: an unprefixed one planted from a sibling subdomain is invisible', () => {
+    expect(read([`__Host-${scoped}`], true)).toEqual([plain]);
+    expect(read([scoped], true)).toEqual([]);
+    expect(read([scoped, `__Host-${scoped}`], true)).toEqual([plain]);
+    // The old shared verifier and another tool's are never read either.
+    expect(
+      read([plain, '__Host-sb-ref-auth-token-code-verifier~missed-call-naplesaiagency-com'], true),
+    ).toEqual([]);
+  });
+
+  it('over plain http (local development) the plain form is read, and the prefixed one is not', () => {
+    expect(read([scoped], false)).toEqual([plain]);
+    expect(read([`__Host-${scoped}`], false)).toEqual([]);
+    expect(read([plain], false)).toEqual([]);
+  });
+
+  it('other cookies, the session above all, always pass through', () => {
+    expect(read(['sb-ref-auth-token', 'theme'], true)).toEqual(['sb-ref-auth-token', 'theme']);
+    expect(read(['sb-ref-auth-token', 'theme'], false)).toEqual(['sb-ref-auth-token', 'theme']);
   });
 });
 

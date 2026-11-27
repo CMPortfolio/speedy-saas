@@ -52,23 +52,26 @@ interface SetCookie extends PlainCookie {
 export function scopedCookieMethods(
   base: { getAll: () => PlainCookie[]; setAll: (cookies: SetCookie[]) => void },
   scope: string,
+  { secure }: { secure: boolean },
 ): { getAll: () => PlainCookie[]; setAll: (cookies: SetCookie[]) => void } {
   const suffix = `${SCOPE_MARK}${scope}`;
+  // Secure (production, https): only the `__Host-` form counts. An unprefixed cookie of the same
+  // name could have been planted from a sibling subdomain with a Domain attribute, which the
+  // browser refuses for `__Host-` but not for a plain name. Not secure (plain http, local
+  // development): only the plain form exists.
+  const prefix = secure ? HOST_PREFIX : '';
   return {
     getAll: () =>
       base.getAll().flatMap((cookie) => {
-        if (cookie.name.endsWith(suffix)) {
-          const unscoped = cookie.name.slice(0, -suffix.length);
-          const plain = unscoped.startsWith(HOST_PREFIX)
-            ? unscoped.slice(HOST_PREFIX.length)
-            : unscoped;
-          return VERIFIER_NAME.test(plain) ? [{ ...cookie, name: plain }] : [cookie];
+        if (cookie.name.startsWith(prefix) && cookie.name.endsWith(suffix)) {
+          const plain = cookie.name.slice(prefix.length, -suffix.length);
+          if (VERIFIER_NAME.test(plain) && !plain.startsWith(HOST_PREFIX)) {
+            return [{ ...cookie, name: plain }];
+          }
         }
-        // A verifier with no scope or another tool's scope is not ours.
-        return VERIFIER_NAME.test(cookie.name) ||
-          cookie.name.includes(`-code-verifier${SCOPE_MARK}`)
-          ? []
-          : [cookie];
+        // Any other verifier, however it is named, is not ours: the old shared one, another tool's,
+        // or this tool's name in the wrong form for this environment.
+        return cookie.name.includes('-code-verifier') ? [] : [cookie];
       }),
     setAll: (cookies) =>
       base.setAll(
@@ -76,11 +79,20 @@ export function scopedCookieMethods(
           if (!VERIFIER_NAME.test(cookie.name)) return cookie;
           // Host-only: no `domain`, so it is neither sent to nor readable by another tool.
           const { domain: _shared, ...hostOnly } = cookie.options;
-          const name = `${cookie.name}${suffix}`;
-          return cookie.options.secure
-            ? { ...cookie, name: `${HOST_PREFIX}${name}`, options: { ...hostOnly, path: '/' } }
+          const name = `${prefix}${cookie.name}${suffix}`;
+          return secure
+            ? { ...cookie, name, options: { ...hostOnly, secure: true, path: '/' } }
             : { ...cookie, name, options: hostOnly };
         }),
       ),
   };
+}
+
+/**
+ * Whether auth cookies are Secure. One answer for the server client, the sign-in action, the callback
+ * and the middleware, so they all name the verifier cookie the same way: production is https, local
+ * development is not.
+ */
+export function cookiesAreSecure(): boolean {
+  return process.env.NODE_ENV === 'production';
 }

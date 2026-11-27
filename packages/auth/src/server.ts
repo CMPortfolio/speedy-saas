@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies, headers } from 'next/headers';
 
 import { appOrigin } from './app-origin';
-import { authCookieOptions, scopedCookieMethods, verifierScope } from './cookies';
+import { authCookieOptions, cookiesAreSecure, scopedCookieMethods, verifierScope } from './cookies';
 import { authEnv } from './env';
 
 export type ServerSupabase = SupabaseClient<Database>;
@@ -25,10 +25,7 @@ export async function createServerSupabase(): Promise<ServerSupabase> {
     authEnv.NEXT_PUBLIC_SUPABASE_URL,
     authEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
-      cookieOptions: authCookieOptions(
-        authEnv.AUTH_COOKIE_DOMAIN,
-        process.env.NODE_ENV === 'production',
-      ),
+      cookieOptions: authCookieOptions(authEnv.AUTH_COOKIE_DOMAIN, cookiesAreSecure()),
       // The session is shared across tools; the sign-in verifier is this tool's own (see cookies.ts).
       cookies: scopedCookieMethods(
         {
@@ -42,6 +39,7 @@ export async function createServerSupabase(): Promise<ServerSupabase> {
           },
         },
         scope,
+        { secure: cookiesAreSecure() },
       ),
     },
   );

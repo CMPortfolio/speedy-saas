@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { appOrigin } from './app-origin';
-import { authCookieOptions, scopedCookieMethods, verifierScope } from './cookies';
+import { authCookieOptions, cookiesAreSecure, scopedCookieMethods, verifierScope } from './cookies';
 
 export interface UpdateSessionOptions {
   /** Paths that need a signed-in user; others are left alone. Prefix match. */
@@ -32,10 +32,9 @@ export async function updateSession(
 
   const host = request.headers.get('host');
   const supabase = createServerClient<Database>(url, anonKey, {
-    cookieOptions: authCookieOptions(
-      process.env.AUTH_COOKIE_DOMAIN,
-      request.nextUrl.protocol === 'https:',
-    ),
+    // Secure is decided by the environment, not by the request: behind Railway the request the
+    // middleware sees is not https, but production is, and the verifier must be named alike everywhere.
+    cookieOptions: authCookieOptions(process.env.AUTH_COOKIE_DOMAIN, cookiesAreSecure()),
     // The session is shared across tools; the sign-in verifier is this tool's own (see cookies.ts).
     cookies: scopedCookieMethods(
       {
@@ -50,6 +49,7 @@ export async function updateSession(
       // The Host header, like the server client: Next rewrites 127.0.0.1 to localhost in nextUrl, which
       // would name the verifier cookie differently in local development.
       verifierScope(appOrigin(host ? `http://${host}` : request.nextUrl.origin)),
+      { secure: cookiesAreSecure() },
     ),
   });
 

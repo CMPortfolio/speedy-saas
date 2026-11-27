@@ -24,6 +24,8 @@ export function authCookieOptions(domain: string | undefined, secure: boolean): 
  */
 const VERIFIER_NAME = /-code-verifier$/;
 const SCOPE_MARK = '~';
+/** Browsers only accept this prefix on a Secure, Path=/ cookie with no Domain: host-only, for sure. */
+const HOST_PREFIX = '__Host-';
 
 /** A short name for this tool, from its public origin, safe to put in a cookie name. */
 export function verifierScope(origin: string): string {
@@ -40,7 +42,10 @@ interface SetCookie extends PlainCookie {
 
 /**
  * Wrap a server client's cookie methods so verifier cookies are per tool: written host-only under a
- * name carrying the tool, and read back under the plain name. A verifier that is not this tool's
+ * name carrying the tool, and read back under the plain name. Over https the name also gets the
+ * `__Host-` prefix, so the browser itself refuses to let the cookie carry a Domain or be set from a
+ * sibling subdomain. Over plain http (local development) the prefix is left off: browsers do not
+ * accept a Secure cookie there, and sign-in would stop working. A verifier that is not this tool's
  * (another tool's, or the old shared one) is invisible here. Everything else, the session above
  * all, passes through untouched on the shared domain.
  */
@@ -53,7 +58,10 @@ export function scopedCookieMethods(
     getAll: () =>
       base.getAll().flatMap((cookie) => {
         if (cookie.name.endsWith(suffix)) {
-          const plain = cookie.name.slice(0, -suffix.length);
+          const unscoped = cookie.name.slice(0, -suffix.length);
+          const plain = unscoped.startsWith(HOST_PREFIX)
+            ? unscoped.slice(HOST_PREFIX.length)
+            : unscoped;
           return VERIFIER_NAME.test(plain) ? [{ ...cookie, name: plain }] : [cookie];
         }
         // A verifier with no scope or another tool's scope is not ours.
@@ -68,7 +76,10 @@ export function scopedCookieMethods(
           if (!VERIFIER_NAME.test(cookie.name)) return cookie;
           // Host-only: no `domain`, so it is neither sent to nor readable by another tool.
           const { domain: _shared, ...hostOnly } = cookie.options;
-          return { ...cookie, name: `${cookie.name}${suffix}`, options: hostOnly };
+          const name = `${cookie.name}${suffix}`;
+          return cookie.options.secure
+            ? { ...cookie, name: `${HOST_PREFIX}${name}`, options: { ...hostOnly, path: '/' } }
+            : { ...cookie, name, options: hostOnly };
         }),
       ),
   };

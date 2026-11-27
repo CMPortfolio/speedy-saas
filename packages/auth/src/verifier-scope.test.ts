@@ -39,6 +39,13 @@ class Jar {
   }
   /** What the browser does with Set-Cookie from a response on this host. */
   set(host: string, name: string, value: string, options: CookieOptions) {
+    // A browser refuses a __Host- cookie that is not Secure, Path=/ and without a Domain.
+    if (
+      name.startsWith('__Host-') &&
+      (!options.secure || options.path !== '/' || options.domain !== undefined)
+    ) {
+      return;
+    }
     const key = Jar.key(host, name, options);
     if (!value || options.maxAge === 0) this.cookies.delete(key);
     else this.cookies.set(key, { name, value, options, ...(options.domain ? {} : { host }) });
@@ -49,7 +56,7 @@ class Jar {
 }
 
 /** One tool: a server client on its own host that talks to a fake Supabase and the shared jar. */
-function tool(jar: Jar, host: string, scoped: boolean) {
+function tool(jar: Jar, host: string, scoped: boolean, secure = true) {
   const sent: { challenge: string | undefined; verifier: string | undefined } = {
     challenge: undefined,
     verifier: undefined,
@@ -87,7 +94,7 @@ function tool(jar: Jar, host: string, scoped: boolean) {
     },
   };
   const client = createServerClient(URL_, KEY, {
-    cookieOptions: authCookieOptions(DOMAIN, true),
+    cookieOptions: authCookieOptions(DOMAIN, secure),
     cookies: scoped ? scopedCookieMethods(base, verifierScope(`https://${host}`)) : base,
     global: { fetch: fakeFetch },
   });
@@ -96,14 +103,14 @@ function tool(jar: Jar, host: string, scoped: boolean) {
 
 const s256 = (verifier: string) => createHash('sha256').update(verifier).digest('base64url');
 
-async function twoLinksThenExchangeTheFirst(scoped: boolean) {
+async function twoLinksThenExchangeTheFirst(scoped: boolean, secure = true) {
   const jar = new Jar();
-  const missedCall = tool(jar, 'missed-call.naplesaiagency.com', scoped);
-  const rainDay = tool(jar, 'rain-day.naplesaiagency.com', scoped);
+  const missedCall = tool(jar, 'missed-call.naplesaiagency.com', scoped, secure);
+  const rainDay = tool(jar, 'rain-day.naplesaiagency.com', scoped, secure);
   await missedCall.client.auth.signInWithOtp({ email: 'o@resend.dev' });
   await rainDay.client.auth.signInWithOtp({ email: 'o@resend.dev' });
   // The owner now opens the link they asked for on Missed Call first.
-  const back = tool(jar, 'missed-call.naplesaiagency.com', scoped);
+  const back = tool(jar, 'missed-call.naplesaiagency.com', scoped, secure);
   await back.client.auth.exchangeCodeForSession('code-from-the-missed-call-link');
   return {
     jar,
@@ -135,6 +142,10 @@ describe('the PKCE verifier is per tool, the session is shared', () => {
       // Every verifier cookie (the fixed one, the pending-flow index, a flow slot) is host-only and
       // carries the name of the one tool whose host it belongs to.
       expect(stored.options.domain).toBeUndefined();
+      // Over https the browser itself enforces host-only, with the __Host- prefix.
+      expect(stored.name.startsWith('__Host-')).toBe(true);
+      expect(stored.options.secure).toBe(true);
+      expect(stored.options.path).toBe('/');
       expect(stored.host).toBeDefined();
       expect(stored.name.endsWith(`~${verifierScope(`https://${stored.host}`)}`)).toBe(true);
     }
@@ -143,6 +154,18 @@ describe('the PKCE verifier is per tool, the session is shared', () => {
     expect(
       jar.for('missed-call.naplesaiagency.com').every((c) => !c.name.includes('~rain-day')),
     ).toBe(true);
+  });
+
+  it('over plain http (local development) the prefix is left off and sign-in still works', async () => {
+    const { jar, missedCallChallenge, back } = await twoLinksThenExchangeTheFirst(true, false);
+    expect(s256(back.sent.verifier!)).toBe(missedCallChallenge);
+    const verifiers = jar.named('-code-verifier');
+    expect(verifiers.length).toBeGreaterThan(0);
+    for (const stored of verifiers) {
+      expect(stored.name.startsWith('__Host-')).toBe(false);
+      expect(stored.options.secure).toBe(false);
+      expect(stored.options.domain).toBeUndefined();
+    }
   });
 
   it('the signed-in session still lands on the shared domain, so one sign-in works on every tool', async () => {

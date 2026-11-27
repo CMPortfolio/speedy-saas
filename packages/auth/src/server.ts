@@ -3,7 +3,7 @@ import 'server-only';
 import type { Database } from '@speedy/db/types';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 import { appOrigin } from './app-origin';
 import { authCookieOptions, scopedCookieMethods, verifierScope } from './cookies';
@@ -17,6 +17,10 @@ export type ServerSupabase = SupabaseClient<Database>;
  */
 export async function createServerSupabase(): Promise<ServerSupabase> {
   const cookieStore = await cookies();
+  // The same fallback the middleware uses (the request's own origin, only when APP_URL is unset in
+  // local development), so both name a tool's verifier cookie the same way.
+  const host = (await headers()).get('host');
+  const scope = verifierScope(appOrigin(host ? `http://${host}` : undefined));
   return createServerClient<Database>(
     authEnv.NEXT_PUBLIC_SUPABASE_URL,
     authEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -37,7 +41,7 @@ export async function createServerSupabase(): Promise<ServerSupabase> {
             }
           },
         },
-        verifierScope(appOrigin()),
+        scope,
       ),
     },
   );

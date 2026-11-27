@@ -27,4 +27,5 @@ export function sendMode(settings: OwnerSettings | null, providerName: string): 
 export const PRACTICE_REFUSED =
   'Practice is only for owners whose texting number is not set up yet.';
 export const PRACTICE_RATE_LIMITED = 'You are going quickly. Wait a few minutes and try again.';
-export const PRACTICE_FULL = 'Your practice phone is full. Clear practice first, then try again.';
+export const PRACTICE_FULL =
+  'Your practice phone is full. Clear practice to start fresh, then try again.';

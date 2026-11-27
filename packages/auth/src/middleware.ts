@@ -30,6 +30,7 @@ export async function updateSession(
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return response;
 
+  const host = request.headers.get('host');
   const supabase = createServerClient<Database>(url, anonKey, {
     cookieOptions: authCookieOptions(
       process.env.AUTH_COOKIE_DOMAIN,
@@ -46,7 +47,9 @@ export async function updateSession(
             response.cookies.set(name, value, cookieOptions);
         },
       },
-      verifierScope(appOrigin(request.nextUrl.origin)),
+      // The Host header, like the server client: Next rewrites 127.0.0.1 to localhost in nextUrl, which
+      // would name the verifier cookie differently in local development.
+      verifierScope(appOrigin(host ? `http://${host}` : request.nextUrl.origin)),
     ),
   });
 

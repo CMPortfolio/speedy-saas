@@ -1,0 +1,41 @@
+{
+  "name": "@speedy/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/database.types.ts",
+    "./core": "./src/core.ts",
+    "./schemas": "./src/schemas.ts",
+    "./testing": "./tests/harness.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "db:start": "docker run -d --name speedy-db -p 54322:5432 -e POSTGRES_PASSWORD=postgres postgres:17-alpine",
+    "db:stop": "docker rm -f speedy-db",
+    "db:reset": "tsx scripts/reset.ts",
+    "db:types": "supabase gen types typescript --local --schema public,job_photos,missed_call,rain_day > src/database.types.ts && prettier --write src/database.types.ts",
+    "db:types:remote": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public,job_photos,missed_call,rain_day > src/database.types.ts && prettier --write src/database.types.ts",
+    "db:local:up": "bash local/up.sh",
+    "db:local:down": "docker compose -f local/docker-compose.yml down -v",
+    "db:local:logs": "docker compose -f local/docker-compose.yml logs -f"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@speedy/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "pg": "catalog:",
+    "prettier": "catalog:",
+    "supabase": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@speedy/sms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./provider": "./src/provider.ts",
+    "./twilio": "./src/twilio.ts",
+    "./fake": "./src/fake.ts",
+    "./webhook": "./src/webhook.ts",
+    "./keywords": "./src/keywords.ts",
+    "./send": "./src/send.ts",
+    "./env": "./src/env.ts",
+    "./create": "./src/create.ts",
+    "./verify-phone": "./src/verify-phone.ts",
+    "./segments": "./src/segments.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@speedy/lib": "workspace:*",
+    "twilio": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@speedy/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  checks:
+    name: Typecheck, lint, format, test, build (affected)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Affected checks
+        env:
+          TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+        run: pnpm turbo run typecheck lint test build --affected --continue
+
+  template:
+    name: Scaffold a throwaway tool, build it, run its smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Dummy values so `next build` and the smoke test run without a Supabase project.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-smoke-anon-key
+      APP_URL: http://127.0.0.1:3999
+      PORT: 3999
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Scaffold ci-smoke
+        run: pnpm new-tool ci-smoke --name "CI Smoke"
+      - run: pnpm install --no-frozen-lockfile
+      - name: Checks and build
+        run: pnpm turbo run typecheck lint test build --filter=@speedy/ci-smoke
+      - name: Install Playwright browser
+        run: pnpm --filter @speedy/ci-smoke exec playwright install --with-deps chromium
+      - name: Smoke test
+        run: pnpm --filter @speedy/ci-smoke test:e2e
+      - name: Nothing throwaway is committed
+        run: |
+          git checkout -- packages/registry/src/tools.ts pnpm-lock.yaml
+          rm -rf apps/ci-smoke packages/db/supabase/migrations/*_ci_smoke_init.sql
+          test -z "$(git status --porcelain)" || { git status --porcelain; exit 1; }

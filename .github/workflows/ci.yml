@@ -32,6 +32,9 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      # Dummy values so `next build` can evaluate the env schema without a Supabase project.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-anon-key
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +61,20 @@ jobs:
     name: Scaffold a throwaway tool, build it, run its smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       # Dummy values so `next build` and the smoke test run without a Supabase project.
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-smoke-anon-key

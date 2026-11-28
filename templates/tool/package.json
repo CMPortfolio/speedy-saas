@@ -1,0 +1,41 @@
+{
+  "name": "@speedy/__SLUG__",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p __PORT__",
+    "build": "next build",
+    "start": "next start -p ${PORT:-__PORT__}",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "clean": "rm -rf .next playwright-report test-results"
+  },
+  "dependencies": {
+    "@speedy/auth": "workspace:*",
+    "@speedy/db": "workspace:*",
+    "@speedy/lib": "workspace:*",
+    "@speedy/registry": "workspace:*",
+    "@speedy/ui": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@speedy/config": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "eslint": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

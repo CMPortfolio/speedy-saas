@@ -1,0 +1,261 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+
+import { formatUsPhone } from '@speedy/lib/phone';
+import { Alert } from '@speedy/ui/alert';
+import { Button } from '@speedy/ui/button';
+import { Card } from '@speedy/ui/card';
+import { Eyebrow } from '@speedy/ui/eyebrow';
+import { Input } from '@speedy/ui/input';
+
+import {
+  practiceCall,
+  practiceClear,
+  practiceMark,
+  practiceReply,
+  type PracticeActionResult,
+  type PracticePage,
+} from './practice-actions';
+import { Phone } from './phone';
+import type { PracticeView } from './practice-state';
+
+const STATUS_LABEL: Record<string, string> = {
+  missed: 'Missed',
+  texted: 'Texted back',
+  replied: 'Replied',
+  called_back: 'Called back',
+  booked: 'Booked',
+  junk: 'Junk',
+};
+
+const MARKS = [
+  { status: 'called_back', label: 'Called back' },
+  { status: 'booked', label: 'Booked' },
+  { status: 'junk', label: 'Junk' },
+] as const;
+
+/** The call whose thread is on the caller phone (the one tapped, else the newest) and the texts for both phones. */
+function pickCall(view: PracticeView, selected: string | null) {
+  const current = view.calls.find((c) => c.id === selected) ?? view.calls[0] ?? null;
+  return {
+    current,
+    forThisCall: view.messages.filter((m) => m.callId === current?.id),
+    toYourCell: view.messages.filter((m) => m.direction === 'forward'),
+  };
+}
+
+/** Marks everything on screen as practice, so it is never mistaken for a real call. */
+function PracticeBadge() {
+  return (
+    <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-deep">
+      Practice
+    </span>
+  );
+}
+
+function ResultNote({ result }: { result: PracticeActionResult | null }) {
+  if (!result) return null;
+  return (
+    <div data-testid="practice-note">
+      <Alert tone={result.ok ? 'info' : 'error'}>{result.ok ? result.note : result.message}</Alert>
+    </div>
+  );
+}
+
+type Run = (action: () => Promise<PracticeActionResult>) => void;
+
+function CallRows({
+  calls,
+  currentId,
+  pending,
+  onSelect,
+  run,
+  from,
+}: {
+  calls: PracticeView['calls'];
+  currentId: string | null;
+  pending: boolean;
+  onSelect: (id: string) => void;
+  run: Run;
+  from: PracticePage;
+}) {
+  if (calls.length === 0) return null;
+  return (
+    <ul className="space-y-2" data-testid="practice-calls">
+      {calls.map((call) => (
+        <li key={call.id}>
+          <Card data-testid="practice-call-row" data-status={call.status} className="space-y-2 p-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onSelect(call.id)}
+                aria-pressed={currentId === call.id}
+                className="min-h-tap text-left text-base font-semibold underline-offset-2 hover:underline"
+              >
+                {formatUsPhone(call.callerNumber)}
+              </button>
+              <span className="flex items-center gap-2">
+                <PracticeBadge />
+                <span data-testid="practice-status" className="text-sm font-medium text-muted">
+                  {STATUS_LABEL[call.status]}
+                </span>
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MARKS.map(({ status, label }) => (
+                <Button
+                  key={status}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending || call.status === status}
+                  aria-label={`${label}: ${formatUsPhone(call.callerNumber)} (practice)`}
+                  onClick={() => run(() => practiceMark(from, call.id, status))}
+                >
+                  {label}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => run(() => practiceCall(from, call.id))}
+              >
+                Calls again
+              </Button>
+            </div>
+          </Card>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ReplyForm({
+  callId,
+  pending,
+  run,
+  from,
+}: {
+  callId: string;
+  pending: boolean;
+  run: Run;
+  from: PracticePage;
+}) {
+  const [reply, setReply] = useState('');
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const body = reply;
+        setReply('');
+        run(() => practiceReply(from, callId, body));
+      }}
+    >
+      <Input
+        label="Reply as the caller"
+        hint="Try STOP, START or HELP too."
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        maxLength={320}
+        autoComplete="off"
+        placeholder="leaking water heater, garage"
+      />
+      <Button type="submit" size="sm" loading={pending} data-testid="practice-send-reply">
+        Send reply
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * The practice phone for an owner whose real number is not set up yet. Everything the tool would
+ * text shows here instead, and nothing is sent to anyone.
+ */
+export function PracticePanel({
+  view,
+  ownerCell,
+  from,
+}: {
+  view: PracticeView;
+  ownerCell: string;
+  from: PracticePage;
+}) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<PracticeActionResult | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const run: Run = (action) => start(async () => setResult(await action()));
+
+  const { current, forThisCall, toYourCell } = pickCall(view, selected);
+
+  return (
+    <section className="space-y-4" aria-labelledby="practice-title" data-testid="practice-panel">
+      <Card accent className="space-y-1">
+        <Eyebrow>Practice</Eyebrow>
+        <h2 id="practice-title" className="text-lg font-semibold">
+          Practice mode
+        </h2>
+        <p className="text-muted" data-testid="practice-banner">
+          Practice mode — nothing is texted to anyone. Your real number isn&apos;t set up yet. Play
+          the customer below to see what a missed call does.
+        </p>
+      </Card>
+
+      <div className="flex flex-wrap gap-3">
+        <Button
+          type="button"
+          onClick={() => run(() => practiceCall(from))}
+          loading={pending}
+          data-testid="practice-call"
+        >
+          Simulate a missed call
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => run(() => practiceClear(from))}
+          disabled={pending || view.calls.length === 0}
+          data-testid="practice-clear"
+        >
+          Clear practice
+        </Button>
+      </div>
+
+      <ResultNote result={result} />
+
+      <CallRows
+        calls={view.calls}
+        currentId={current?.id ?? null}
+        pending={pending}
+        onSelect={setSelected}
+        run={run}
+        from={from}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-3">
+          <Phone
+            title={
+              current ? `Caller's phone: ${formatUsPhone(current.callerNumber)}` : "Caller's phone"
+            }
+            received={['out']}
+            messages={forThisCall}
+            empty="Simulate a missed call to see the text the caller gets."
+            testId="practice-caller-phone"
+          />
+          {current && <ReplyForm callId={current.id} pending={pending} run={run} from={from} />}
+        </div>
+        <Phone
+          title={`Your cell: ${formatUsPhone(ownerCell)}`}
+          received={['forward']}
+          messages={toYourCell}
+          empty="A caller's reply shows up here as a new lead."
+          testId="practice-cell-phone"
+        />
+      </div>
+    </section>
+  );
+}

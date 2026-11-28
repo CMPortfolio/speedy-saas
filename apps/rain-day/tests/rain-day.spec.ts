@@ -74,12 +74,13 @@ test('import 15 customers, run a rain day, see 15 individual sends and the opted
   await expect(page).toHaveURL(/\/customers$/);
   await expect(page.getByRole('list', { name: 'Customers' }).getByRole('listitem')).toHaveCount(15);
 
-  // Until an admin gives this owner a texting number, Send is off and says why.
+  // Until an admin gives this owner a texting number the page is in practice mode: no real Send.
   await page.goto('/rain-day');
   await page.getByLabel("Day that's off").fill(nextWeekday(2));
   await expect(page.getByRole('heading', { name: /Tuesday customers/ })).toBeVisible();
-  await expect(page.getByText("Your texting number isn't set up yet.")).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Send \d+ texts?$/ })).toBeDisabled();
+  await expect(page.getByTestId('practice-banner')).toContainText('nothing is texted to anyone');
+  await expect(page.getByRole('button', { name: /^Send \d+ texts?$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Send as practice/ })).toBeVisible();
 
   const senderNumber = await assignSenderNumber(request, owner);
 

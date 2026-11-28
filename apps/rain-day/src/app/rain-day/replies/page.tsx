@@ -1,12 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { createServerSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
 import { listReplies } from '@/features/replies/queries';
+import { expirePractice } from '@/features/practice/core';
+import { isPracticeOwner } from '@/features/practice/gate';
+import { PracticeRepliesSection } from '@/features/practice/practice-replies-section';
+import { listPracticeReplies } from '@/features/practice/queries';
 import { getOwnerSettings } from '@/features/settings/owner-cell';
 
 export const metadata: Metadata = { title: 'Replies' };
@@ -29,12 +33,16 @@ const when = new Intl.DateTimeFormat('en-US', {
 });
 
 export default async function RepliesPage() {
-  await requireUser('/rain-day/replies');
+  const user = await requireUser('/rain-day/replies');
   const supabase = await createServerSupabase();
   const [replies, settings] = await Promise.all([
     listReplies(supabase),
     getOwnerSettings(supabase),
   ]);
+  // Practice replies show only while the owner is in practice mode, decided from their settings.
+  const practice = isPracticeOwner(settings);
+  if (practice) await expirePractice({ service: createServiceSupabase(), ownerId: user.id });
+  const practiceReplies = practice ? await listPracticeReplies(supabase) : [];
 
   return (
     <section className="flex flex-col gap-6 py-4">
@@ -51,13 +59,13 @@ export default async function RepliesPage() {
           .
         </p>
       )}
-      {replies.length === 0 ? (
+      {replies.length === 0 && !practice ? (
         <EmptyState
           title="No replies yet"
           description="When a customer answers a rain-day text, it shows up here."
           action={<ButtonLink href="/rain-day">Run a rain day</ButtonLink>}
         />
-      ) : (
+      ) : replies.length === 0 ? null : (
         <ul aria-label="Replies" className="flex flex-col gap-2">
           {replies.map((r) => (
             <li
@@ -76,6 +84,7 @@ export default async function RepliesPage() {
           ))}
         </ul>
       )}
+      {practice && <PracticeRepliesSection replies={practiceReplies} />}
     </section>
   );
 }

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { fakeProvider } from '@speedy/sms/fake';
 import type { CallStatusEvent } from '@speedy/sms/provider';
 import { createClient } from '@supabase/supabase-js';
@@ -25,7 +27,9 @@ const admin = createClient(url ?? 'http://127.0.0.1', serviceKey ?? 'x', {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const db = admin.schema('missed_call');
-const sms = fakeProvider();
+// Message ids are unique in the shared database and the counter is per provider, so give each
+// test file its own prefix: files run in parallel workers and would otherwise both record FAKE0001.
+const sms = fakeProvider({ idPrefix: `FAKE-${randomUUID().slice(0, 8)}-` });
 let lineId = '';
 let userId = '';
 let sid = 0;

@@ -15,6 +15,12 @@ describe('fakeProvider', () => {
     expect(p.sent[0]?.sentAt).toBeInstanceOf(Date);
   });
 
+  it('takes an id prefix so parallel test files do not share ids', async () => {
+    const p = fakeProvider({ idPrefix: 'T1-' });
+    const r = await p.sendText({ to: '+12395550123', from: '+12395550100', body: 'one' });
+    expect(r).toEqual({ ok: true, value: { providerMessageId: 'T1-0001' } });
+  });
+
   it('lets a test inject an inbound text and a call event', () => {
     const p = fakeProvider();
     const req = p.inbound({

@@ -62,6 +62,7 @@ export async function deleteOwner(request: APIRequestContext, id: string): Promi
 export async function assignSenderNumber(
   request: APIRequestContext,
   owner: TestOwner,
+  options: { withService?: boolean } = {},
 ): Promise<string> {
   const number = `+123974${String(Math.floor(Math.random() * 100_000)).padStart(5, '0')}`;
   // Like the number, unique per run (one service per owner).
@@ -72,11 +73,15 @@ export async function assignSenderNumber(
       'content-profile': 'rain_day',
       prefer: 'resolution=merge-duplicates,return=minimal',
     },
-    data: { owner_id: owner.id, sender_number: number, sender_messaging_service_sid: sid },
+    data: {
+      owner_id: owner.id,
+      sender_number: number,
+      ...(options.withService === false ? {} : { sender_messaging_service_sid: sid }),
+    },
   });
   if (!res.ok()) throw new Error(`could not set the sender number: ${res.status()}`);
   owner.senderNumber = number;
-  owner.messagingServiceSid = sid;
+  if (options.withService !== false) owner.messagingServiceSid = sid;
   return number;
 }
 

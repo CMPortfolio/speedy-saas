@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Database } from '@speedy/db/types';
 import { fakeProvider } from '@speedy/sms/fake';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -24,7 +26,9 @@ const OTHER_CELL = `+1239563${suffix}`;
 
 let userId = '';
 let owner: SupabaseClient<Database>;
-const sms = fakeProvider();
+// Message ids are unique in the shared database and the counter is per provider, so give each
+// test file its own prefix: files run in parallel workers and would otherwise both record FAKE0001.
+const sms = fakeProvider({ idPrefix: `FAKE-${randomUUID().slice(0, 8)}-` });
 
 const verifier = () =>
   createOwnerCellVerifier({

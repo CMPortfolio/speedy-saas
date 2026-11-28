@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { createServerSupabase } from '@speedy/auth/server';
+import { createServerSupabase, createServiceSupabase } from '@speedy/auth/server';
 import { requireUser } from '@speedy/auth/user';
 import { EmptyState } from '@speedy/ui/empty-state';
 
 import { ButtonLink } from '@/components/button-link';
+import { expirePractice } from '@/features/practice/core';
+import { isPracticeOwner } from '@/features/practice/gate';
+import { PracticeHistorySection } from '@/features/practice/practice-history-section';
+import { listPracticeDaySummaries } from '@/features/practice/queries';
+import { getOwnerSettings } from '@/features/settings/owner-cell';
 import { listRescheduleSummaries } from '@/features/rain-day/queries';
 import { isStale } from '@/lib/clock';
 
@@ -43,9 +48,13 @@ function summary(counts: Record<string, number>, stale: boolean): string {
 }
 
 export default async function HistoryPage() {
-  await requireUser('/rain-day/history');
+  const user = await requireUser('/rain-day/history');
   const supabase = await createServerSupabase();
   const items = await listRescheduleSummaries(supabase);
+  // Practice rain days show only while the owner is in practice mode, decided from their settings.
+  const practice = isPracticeOwner(await getOwnerSettings(supabase));
+  if (practice) await expirePractice({ service: createServiceSupabase(), ownerId: user.id });
+  const practiceDays = practice ? await listPracticeDaySummaries(supabase) : [];
 
   return (
     <section className="flex flex-col gap-6 py-4">
@@ -55,7 +64,8 @@ export default async function HistoryPage() {
           Tap one to see who got which text, when, and how it went.
         </p>
       </header>
-      {items.length === 0 ? (
+      <PracticeHistorySection items={practiceDays} />
+      {items.length === 0 && practiceDays.length > 0 ? null : items.length === 0 ? (
         <EmptyState
           title="Nothing sent yet"
           description="Your rain days show up here after you send them."

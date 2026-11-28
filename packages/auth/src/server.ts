@@ -3,9 +3,10 @@ import 'server-only';
 import type { Database } from '@speedy/db/types';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
-import { authCookieOptions } from './cookies';
+import { appOrigin } from './app-origin';
+import { authCookieOptions, cookiesAreSecure, scopedCookieMethods, verifierScope } from './cookies';
 import { authEnv } from './env';
 
 export type ServerSupabase = SupabaseClient<Database>;
@@ -16,24 +17,30 @@ export type ServerSupabase = SupabaseClient<Database>;
  */
 export async function createServerSupabase(): Promise<ServerSupabase> {
   const cookieStore = await cookies();
+  // The same fallback the middleware uses (the request's own origin, only when APP_URL is unset in
+  // local development), so both name a tool's verifier cookie the same way.
+  const host = (await headers()).get('host');
+  const scope = verifierScope(appOrigin(host ? `http://${host}` : undefined));
   return createServerClient<Database>(
     authEnv.NEXT_PUBLIC_SUPABASE_URL,
     authEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
-      cookieOptions: authCookieOptions(
-        authEnv.AUTH_COOKIE_DOMAIN,
-        process.env.NODE_ENV === 'production',
-      ),
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (toSet) => {
-          try {
-            for (const { name, value, options } of toSet) cookieStore.set(name, value, options);
-          } catch {
-            // Called from a Server Component: middleware refreshes the session instead.
-          }
+      cookieOptions: authCookieOptions(authEnv.AUTH_COOKIE_DOMAIN, cookiesAreSecure()),
+      // The session is shared across tools; the sign-in verifier is this tool's own (see cookies.ts).
+      cookies: scopedCookieMethods(
+        {
+          getAll: () => cookieStore.getAll(),
+          setAll: (toSet) => {
+            try {
+              for (const { name, value, options } of toSet) cookieStore.set(name, value, options);
+            } catch {
+              // Called from a Server Component: middleware refreshes the session instead.
+            }
+          },
         },
-      },
+        scope,
+        { secure: cookiesAreSecure() },
+      ),
     },
   );
 }

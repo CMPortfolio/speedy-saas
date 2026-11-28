@@ -35,7 +35,17 @@ export interface FakeProvider extends SmsProvider {
   reset(): void;
 }
 
-export function fakeProvider(): FakeProvider {
+export interface FakeProviderOptions {
+  /**
+   * Prefix of the generated message ids (default `FAKE`, giving FAKE0001, FAKE0002...). The counter
+   * is per provider, so test files that run in parallel against one shared database and record
+   * the ids in a unique column pass their own prefix to keep the ids from colliding.
+   */
+  idPrefix?: string;
+}
+
+export function fakeProvider(options: FakeProviderOptions = {}): FakeProvider {
+  const idPrefix = options.idPrefix ?? 'FAKE';
   const forbidden = fakeSmsForbidden();
   if (forbidden) throw new Error(forbidden);
   const sent: SentText[] = [];
@@ -53,7 +63,7 @@ export function fakeProvider(): FakeProvider {
         return err(error);
       }
       counter += 1;
-      const providerMessageId = `FAKE${String(counter).padStart(4, '0')}`;
+      const providerMessageId = `${idPrefix}${String(counter).padStart(4, '0')}`;
       sent.push({ ...input, providerMessageId, sentAt: new Date() });
       return ok({ providerMessageId });
     },

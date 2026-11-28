@@ -1,0 +1,21 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile && pnpm turbo build --filter=@speedy/job-photos",
+    "watchPatterns": [
+      "apps/job-photos/**",
+      "packages/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "turbo.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @speedy/job-photos start",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 120,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
+  }
+}

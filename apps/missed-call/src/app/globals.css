@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+@import '@speedy/config/tailwind';
+@source '../../node_modules/@speedy/ui/src';
+@source '../../node_modules/@speedy/auth/src';

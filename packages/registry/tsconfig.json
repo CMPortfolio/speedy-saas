@@ -1,0 +1,4 @@
+{
+  "extends": "@speedy/config/tsconfig.package.json",
+  "include": ["src/**/*.ts", "*.ts"]
+}

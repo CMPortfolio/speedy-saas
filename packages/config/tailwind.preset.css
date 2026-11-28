@@ -1,0 +1,39 @@
+/*
+ * Naples AI Tailwind v4 preset. Import after tailwindcss in every app's globals.css:
+ *   @import 'tailwindcss';
+ *   @import '@speedy/config/tailwind';
+ * Values mirror ./brand.js; change both together.
+ */
+@theme {
+  --color-primary: #0e7490;
+  --color-primary-hover: #155e75;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #f97362;
+  --color-accent-foreground: #2b1b17;
+  --color-background: #faf9f6;
+  --color-surface: #ffffff;
+  --color-border: #e5e1da;
+  --color-ink: #1c1917;
+  --color-muted: #6b6560;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+
+  --radius-brand: 0.75rem;
+  --spacing-tap: 44px;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-ink antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}

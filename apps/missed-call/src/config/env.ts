@@ -1,0 +1,18 @@
+import { authEnvSchema } from '@speedy/auth/env';
+import { createEnv, envHelpers } from '@speedy/lib/env';
+import { z } from 'zod';
+
+/**
+ * This tool's environment. Server vars are never readable in the browser; client vars must
+ * start with NEXT_PUBLIC_. Add the tool's own variables here and to .env.example.
+ */
+export const env = createEnv({
+  server: {
+    ...authEnvSchema.server,
+    APP_URL: z.url().default('http://localhost:3001'),
+    LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+    NODE_ENV: envHelpers.nodeEnv,
+  },
+  client: { ...authEnvSchema.client },
+  skipValidation: process.env.SKIP_ENV_VALIDATION === '1',
+});

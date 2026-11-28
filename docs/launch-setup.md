@@ -8,11 +8,11 @@ Project `speedy-saas` (id `26cb37f8-e9e1-4a3d-8681-180d53e2bb3a`), environment `
 (`f434fe0b-8d8b-4cf2-b7ba-08a472cd6920`). One service per tool, Railpack builder, build
 `pnpm turbo build --filter=@speedy/<slug>`, start `pnpm --filter @speedy/<slug> start`, healthcheck `/`.
 
-| Tool | Service id | URL |
-| --- | --- | --- |
-| job-photos | `fcb02b46-9bc9-4c5b-ab04-47bf77363ad6` | https://job-photos-production.up.railway.app |
+| Tool        | Service id                             | URL                                                    |
+| ----------- | -------------------------------------- | ------------------------------------------------------ |
+| job-photos  | `fcb02b46-9bc9-4c5b-ab04-47bf77363ad6` | https://job-photos-production.up.railway.app           |
 | missed-call | `09d98d93-0539-4080-a88a-279fba3f35c8` | https://missed-call-production-d1ed3cc4.up.railway.app |
-| rain-day | `88775d46-e2fc-4cc7-bd5c-d5d5fb478727` | https://rain-day-production.up.railway.app |
+| rain-day    | `88775d46-e2fc-4cc7-bd5c-d5d5fb478727` | https://rain-day-production.up.railway.app             |
 
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` were
 set to `replace-me` placeholders. Replace them before anything is shown to an owner.

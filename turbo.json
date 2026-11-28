@@ -1,0 +1,48 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["pnpm-lock.yaml", "packages/config/**"],
+  "globalEnv": ["NODE_ENV", "CI"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "NEXT_PUBLIC_*",
+        "SUPABASE_*",
+        "APP_*",
+        "AUTH_*",
+        "RESEND_*",
+        "SMS_*",
+        "TWILIO_*",
+        "CRON_SECRET",
+        "PORT"
+      ]
+    },
+    "dev": { "cache": false, "persistent": true },
+    "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
+    "lint": { "dependsOn": ["^lint"], "outputs": [] },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": [],
+      "env": ["DB_TESTS", "DATABASE_URL", "SUPABASE_*", "NEXT_PUBLIC_*"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "outputs": ["playwright-report/**"],
+      "env": [
+        "PORT",
+        "APP_*",
+        "SUPABASE_*",
+        "NEXT_PUBLIC_*",
+        "AUTH_*",
+        "SMS_*",
+        "TWILIO_*",
+        "PLAYWRIGHT_*"
+      ]
+    },
+    "clean": { "cache": false }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@speedy/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.nextjs.json": "./tsconfig.nextjs.json",
+    "./tsconfig.package.json": "./tsconfig.package.json",
+    "./eslint": "./eslint.config.js",
+    "./eslint/next": "./eslint.next.config.js",
+    "./prettier": "./prettier.config.js",
+    "./tailwind": "./tailwind.preset.css",
+    "./brand": "./brand.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.check.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "@next/eslint-plugin-next": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-import-x": "catalog:",
+    "eslint-plugin-react": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

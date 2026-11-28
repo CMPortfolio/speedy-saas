@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Database } from '@speedy/db/types';
 import { fakeProvider } from '@speedy/sms/fake';
 import type { CallStatusEvent } from '@speedy/sms/provider';
@@ -29,7 +31,9 @@ const password = `pw-${crypto.randomUUID()}`;
 type Owner = { id: string; db: SupabaseClient<Database>; lineId: string };
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient<Database>(url ?? 'http://127.0.0.1', serviceKey ?? 'x', opts);
-const sms = fakeProvider();
+// Message ids are unique in the shared database and the counter is per provider, so give each
+// test file its own prefix: files run in parallel workers and would otherwise both record FAKE0001.
+const sms = fakeProvider({ idPrefix: `FAKE-${randomUUID().slice(0, 8)}-` });
 let a: Owner;
 let b: Owner;
 let sid = 0;

@@ -45,3 +45,6 @@ Add `--filter <slug>...` to any check to run it for one tool and the packages it
 
 Railway, one service per app, each on `<tool>.naplesaiagency.com`. One shared Supabase project
 for every tool with one sign-in across tools. Email through Resend. DNS on Cloudflare.
+
+Feature branches go to `develop`, then `staging`, then `main`; production deploys from `main`.
+Launch setup (Railway, Supabase, domains, SMS) is in [docs/launch-setup.md](docs/launch-setup.md).

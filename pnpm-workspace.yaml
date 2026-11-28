@@ -1,0 +1,42 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# One version of each shared dependency across the repo (CLAUDE.md rule 5).
+# Packages and apps reference these as "catalog:".
+catalog:
+  typescript: ^5.9.3
+  '@types/node': ^22.19.7
+  '@types/react': ^19.3.1
+  '@types/react-dom': ^19.3.1
+  next: ^16.4.6
+  react: ^19.3.1
+  react-dom: ^19.3.1
+  zod: ^4.6.7
+  vitest: ^5.1.1
+  '@vitest/coverage-v8': ^5.1.1
+  jsdom: ^31.0.1
+  '@testing-library/react': ^16.3.3
+  '@testing-library/jest-dom': ^6.9.1
+  '@testing-library/user-event': ^14.6.1
+  '@playwright/test': 1.63.0
+  eslint: ^9.39.0
+  '@eslint/js': ^9.39.0
+  typescript-eslint: ^8.74.0
+  eslint-config-prettier: ^10.1.8
+  eslint-plugin-import-x: ^4.16.1
+  eslint-plugin-react: ^7.37.5
+  eslint-plugin-react-hooks: ^7.0.1
+  '@next/eslint-plugin-next': ^16.4.6
+  globals: ^16.5.0
+  tailwindcss: ^4.3.5
+  '@tailwindcss/postcss': ^4.3.5
+  postcss: ^8.5.6
+  '@supabase/ssr': ^0.12.7
+  '@supabase/supabase-js': ^2.119.2
+  resend: ^6.39.0
+  twilio: ^6.3.1
+  clsx: ^2.1.1
+  tailwind-merge: ^3.4.0
+  supabase: ^3.4.0
+  tsx: ^4.21.0
